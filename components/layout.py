@@ -1,7 +1,7 @@
 import dash
 from dash import dcc, html
 import dash_bootstrap_components as dbc
-from components.modals import create_welcome_modal, create_data_source_modal, create_sql_credentials_modal, create_csv_upload_modal, create_column_selection_modal, create_configuration_modal
+from components.modals import create_welcome_modal, create_data_source_modal, create_sql_credentials_modal, create_csv_upload_modal, create_column_selection_modal, create_configuration_modal, create_sql_query_modal
 from components.themes import create_theme_selector
 
 def create_main_layout():
@@ -86,7 +86,8 @@ def create_main_layout():
             create_sql_credentials_modal(),
             create_csv_upload_modal(),
             create_column_selection_modal(),
-            create_configuration_modal()
+            create_configuration_modal(),
+            create_sql_query_modal()
         ])
     ], className="dashboard-container")
 
