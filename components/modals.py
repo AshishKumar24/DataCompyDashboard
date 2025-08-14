@@ -131,7 +131,7 @@ def create_data_source_modal():
                             ], className="text-center")
                         ])
                     ], className="h-100 border-2 hover-card")
-                ], width=6),
+                ], width=4),
                 dbc.Col([
                     dbc.Card([
                         dbc.CardBody([
@@ -146,7 +146,22 @@ def create_data_source_modal():
                             ], className="text-center")
                         ])
                     ], className="h-100 border-2 hover-card")
-                ], width=6)
+                ], width=4),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.Div([
+                                html.I(className="fas fa-code fa-3x text-info mb-3"),
+                                html.H5("SQL Queries", className="card-title"),
+                                html.P("Write custom SQL queries for comparison", className="card-text text-muted"),
+                                dbc.Button([
+                                    html.I(className="fas fa-code me-2"),
+                                    "Write SQL Queries"
+                                ], id="sql-query-option", color="info", outline=True, className="w-100")
+                            ], className="text-center")
+                        ])
+                    ], className="h-100 border-2 hover-card")
+                ], width=4)
             ], className="mb-4")
         ]),
         dbc.ModalFooter([
@@ -154,7 +169,7 @@ def create_data_source_modal():
         ])
     ], 
     id="data-source-modal", 
-    size="lg", 
+    size="xl", 
     backdrop="static",
     is_open=False,  # Don't open by default, will be opened by welcome modal
     className="custom-modal")
@@ -437,4 +452,172 @@ def create_column_selection_modal():
     id="column-selection-modal", 
     size="xl", 
     backdrop="static",
+    className="custom-modal")
+
+def create_sql_query_modal():
+    """Create SQL query input modal for base and compare queries"""
+    return dbc.Modal([
+        dbc.ModalHeader([
+            html.H4([
+                html.I(className="fas fa-code me-2"),
+                "SQL Query Input"
+            ], className="mb-0")
+        ]),
+        dbc.ModalBody([
+            dbc.Alert([
+                html.I(className="fas fa-info-circle me-2"),
+                "Write SQL queries to fetch your base and compare datasets. Both queries should return similar column structures for proper comparison."
+            ], color="info", className="mb-4"),
+            
+            # Database connection section
+            dbc.Card([
+                dbc.CardHeader([
+                    html.H5([
+                        html.I(className="fas fa-database me-2"),
+                        "Database Connection"
+                    ], className="mb-0")
+                ]),
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Database Type:", className="fw-bold"),
+                            dbc.Select(
+                                id="sql-query-db-type",
+                                options=[
+                                    {"label": "PostgreSQL", "value": "postgresql"},
+                                    {"label": "MySQL", "value": "mysql"},
+                                    {"label": "SQLite", "value": "sqlite"}
+                                ],
+                                value="postgresql"
+                            )
+                        ], width=4),
+                        dbc.Col([
+                            dbc.Label("Host:", className="fw-bold"),
+                            dbc.Input(
+                                id="sql-query-host",
+                                type="text",
+                                placeholder="localhost",
+                                value="localhost"
+                            )
+                        ], width=4),
+                        dbc.Col([
+                            dbc.Label("Port:", className="fw-bold"),
+                            dbc.Input(
+                                id="sql-query-port",
+                                type="number",
+                                placeholder="5432",
+                                value=5432
+                            )
+                        ], width=4)
+                    ], className="mb-3"),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Database:", className="fw-bold"),
+                            dbc.Input(
+                                id="sql-query-database",
+                                type="text",
+                                placeholder="database_name"
+                            )
+                        ], width=4),
+                        dbc.Col([
+                            dbc.Label("Username:", className="fw-bold"),
+                            dbc.Input(
+                                id="sql-query-username",
+                                type="text",
+                                placeholder="username"
+                            )
+                        ], width=4),
+                        dbc.Col([
+                            dbc.Label("Password:", className="fw-bold"),
+                            dbc.Input(
+                                id="sql-query-password",
+                                type="password",
+                                placeholder="password"
+                            )
+                        ], width=4)
+                    ])
+                ])
+            ], className="mb-4"),
+            
+            # SQL Queries section
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader([
+                            html.H5([
+                                html.I(className="fas fa-table me-2 text-primary"),
+                                "Base Dataset Query"
+                            ], className="mb-0")
+                        ]),
+                        dbc.CardBody([
+                            dbc.Label("SQL Query for Base Dataset:", className="fw-bold mb-2"),
+                            dbc.Textarea(
+                                id="base-sql-query",
+                                placeholder="SELECT * FROM base_table WHERE...",
+                                rows=8,
+                                className="font-monospace",
+                                style={"fontSize": "14px"}
+                            ),
+                            html.Small("Write your SQL query to fetch the base dataset", className="text-muted")
+                        ])
+                    ], className="border-primary")
+                ], width=6),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader([
+                            html.H5([
+                                html.I(className="fas fa-table me-2 text-success"),
+                                "Compare Dataset Query"
+                            ], className="mb-0")
+                        ]),
+                        dbc.CardBody([
+                            dbc.Label("SQL Query for Compare Dataset:", className="fw-bold mb-2"),
+                            dbc.Textarea(
+                                id="compare-sql-query",
+                                placeholder="SELECT * FROM compare_table WHERE...",
+                                rows=8,
+                                className="font-monospace",
+                                style={"fontSize": "14px"}
+                            ),
+                            html.Small("Write your SQL query to fetch the compare dataset", className="text-muted")
+                        ])
+                    ], className="border-success")
+                ], width=6)
+            ], className="mb-3"),
+            
+            # Test connection and preview
+            dbc.Row([
+                dbc.Col([
+                    dbc.ButtonGroup([
+                        dbc.Button([
+                            html.I(className="fas fa-plug me-2"),
+                            "Test Connection"
+                        ], id="test-sql-connection", color="outline-secondary", size="sm"),
+                        dbc.Button([
+                            html.I(className="fas fa-eye me-2"),
+                            "Preview Base"
+                        ], id="preview-base-query", color="outline-primary", size="sm"),
+                        dbc.Button([
+                            html.I(className="fas fa-eye me-2"),
+                            "Preview Compare"
+                        ], id="preview-compare-query", color="outline-success", size="sm")
+                    ], className="w-100")
+                ], width=12)
+            ]),
+            
+            # Status/preview area
+            html.Div(id="sql-query-status", className="mt-3")
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="cancel-sql-query", color="secondary", className="me-2"),
+            dbc.Button([
+                html.I(className="fas fa-play me-2"),
+                "Execute Queries & Compare"
+            ], id="execute-sql-queries", color="primary", disabled=True)
+        ])
+    ], 
+    id="sql-query-modal", 
+    size="xl",
+    backdrop="static",
+    is_open=False,
     className="custom-modal")
