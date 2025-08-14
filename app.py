@@ -76,6 +76,18 @@ def toggle_configuration_modal(config_clicks, cancel_clicks, is_open):
         return not is_open
     return is_open
 
+# Callback for opening SQL query modal
+@app.callback(
+    Output("sql-query-modal", "is_open"),
+    [Input("sql-query-option", "n_clicks"),
+     Input("cancel-sql-query", "n_clicks")],
+    [State("sql-query-modal", "is_open")]
+)
+def toggle_sql_query_modal(sql_clicks, cancel_clicks, is_open):
+    if sql_clicks or cancel_clicks:
+        return not is_open
+    return is_open
+
 # Callback for initial add data button (dynamic button)
 @app.callback(
     Output("data-source-modal", "is_open", allow_duplicate=True),
