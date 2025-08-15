@@ -131,22 +131,7 @@ def create_data_source_modal():
                             ], className="text-center")
                         ])
                     ], className="h-100 border-2 hover-card")
-                ], width=4),
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardBody([
-                            html.Div([
-                                html.I(className="fas fa-database fa-3x text-success mb-3"),
-                                html.H5("SQL Query", className="card-title"),
-                                html.P("Connect to database and run queries", className="card-text text-muted"),
-                                dbc.Button([
-                                    html.I(className="fas fa-plug me-2"),
-                                    "Connect to DB"
-                                ], id="sql-option", color="success", outline=True, className="w-100")
-                            ], className="text-center")
-                        ])
-                    ], className="h-100 border-2 hover-card")
-                ], width=4),
+                ], width=6),
                 dbc.Col([
                     dbc.Card([
                         dbc.CardBody([
@@ -161,7 +146,7 @@ def create_data_source_modal():
                             ], className="text-center")
                         ])
                     ], className="h-100 border-2 hover-card")
-                ], width=4)
+                ], width=6)
             ], className="mb-4")
         ]),
         dbc.ModalFooter([
@@ -358,8 +343,53 @@ def create_column_selection_modal():
             ], className="mb-0")
         ]),
         dbc.ModalBody([
-            # Dataset info
-            html.Div(id="dataset-info", className="mb-4"),
+            # Dataset info - enhanced for SQL queries
+            html.Div([
+                dbc.Alert([
+                    html.I(className="fas fa-database me-2"),
+                    html.Span("SQL queries executed successfully! Select columns to compare the datasets.")
+                ], color="success", className="mb-3"),
+                
+                # SQL Query info cards
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardHeader([
+                                html.H6([
+                                    html.I(className="fas fa-table me-2 text-primary"),
+                                    "Base Dataset"
+                                ], className="mb-0")
+                            ]),
+                            dbc.CardBody([
+                                html.P("From SQL query execution", className="text-muted mb-1"),
+                                html.Small("Rows loaded: ", className="fw-bold"),
+                                html.Span("1,000", id="base-row-count", className="text-primary"),
+                                html.Br(),
+                                html.Small("Columns available: ", className="fw-bold"),
+                                html.Span("15", id="base-col-count", className="text-primary")
+                            ])
+                        ], className="border-primary")
+                    ], width=6),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardHeader([
+                                html.H6([
+                                    html.I(className="fas fa-copy me-2 text-success"),
+                                    "Compare Dataset"
+                                ], className="mb-0")
+                            ]),
+                            dbc.CardBody([
+                                html.P("From SQL query execution", className="text-muted mb-1"),
+                                html.Small("Rows loaded: ", className="fw-bold"),
+                                html.Span("1,200", id="compare-row-count", className="text-success"),
+                                html.Br(),
+                                html.Small("Columns available: ", className="fw-bold"),
+                                html.Span("15", id="compare-col-count", className="text-success")
+                            ])
+                        ], className="border-success")
+                    ], width=6)
+                ])
+            ], id="dataset-info", className="mb-4"),
             
             # Join columns section
             dbc.Card([
@@ -442,7 +472,7 @@ def create_column_selection_modal():
             ], className="mb-4")
         ]),
         dbc.ModalFooter([
-            dbc.Button("Back to Upload", id="back-to-upload", color="secondary", className="me-2"),
+            dbc.Button("Back to Data Source", id="back-to-data-source", color="secondary", className="me-2"),
             dbc.Button([
                 html.I(className="fas fa-play me-2"),
                 "Run Comparison"
@@ -455,169 +485,230 @@ def create_column_selection_modal():
     className="custom-modal")
 
 def create_sql_query_modal():
-    """Create SQL query input modal for base and compare queries"""
+    """Create step-by-step SQL query modal - Step 1: Base Dataset"""
     return dbc.Modal([
         dbc.ModalHeader([
             html.H4([
-                html.I(className="fas fa-code me-2"),
-                "SQL Query Input"
-            ], className="mb-0")
+                html.I(className="fas fa-database me-2 text-primary"),
+                "Step 1: Base Dataset Query"
+            ], className="mb-0"),
+            html.Small("Write your SQL query for the base dataset", className="text-muted")
         ]),
         dbc.ModalBody([
+            # Progress indicator
+            dbc.Progress(value=25, color="primary", className="mb-4", style={"height": "8px"}),
+            
             dbc.Alert([
                 html.I(className="fas fa-info-circle me-2"),
-                "Write SQL queries to fetch your base and compare datasets. Both queries should return similar column structures for proper comparison."
+                "Enter your SQL query to fetch the base dataset. This will be used as the reference for comparison."
             ], color="info", className="mb-4"),
             
-            # Database connection section
+            # Database name input
             dbc.Card([
                 dbc.CardHeader([
-                    html.H5([
-                        html.I(className="fas fa-database me-2"),
-                        "Database Connection"
+                    html.H6([
+                        html.I(className="fas fa-server me-2"),
+                        "Database Information"
                     ], className="mb-0")
                 ]),
                 dbc.CardBody([
                     dbc.Row([
                         dbc.Col([
-                            dbc.Label("Database Type:", className="fw-bold"),
-                            dbc.Select(
-                                id="sql-query-db-type",
-                                options=[
-                                    {"label": "PostgreSQL", "value": "postgresql"},
-                                    {"label": "MySQL", "value": "mysql"},
-                                    {"label": "SQLite", "value": "sqlite"}
-                                ],
-                                value="postgresql"
-                            )
-                        ], width=4),
-                        dbc.Col([
-                            dbc.Label("Host:", className="fw-bold"),
+                            dbc.Label("Database Name:", className="fw-bold"),
                             dbc.Input(
-                                id="sql-query-host",
+                                id="sql-step-database",
                                 type="text",
-                                placeholder="localhost",
-                                value="localhost"
-                            )
-                        ], width=4),
-                        dbc.Col([
-                            dbc.Label("Port:", className="fw-bold"),
-                            dbc.Input(
-                                id="sql-query-port",
-                                type="number",
-                                placeholder="5432",
-                                value=5432
-                            )
-                        ], width=4)
-                    ], className="mb-3"),
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Database:", className="fw-bold"),
-                            dbc.Input(
-                                id="sql-query-database",
-                                type="text",
-                                placeholder="database_name"
-                            )
-                        ], width=4),
-                        dbc.Col([
-                            dbc.Label("Username:", className="fw-bold"),
-                            dbc.Input(
-                                id="sql-query-username",
-                                type="text",
-                                placeholder="username"
-                            )
-                        ], width=4),
-                        dbc.Col([
-                            dbc.Label("Password:", className="fw-bold"),
-                            dbc.Input(
-                                id="sql-query-password",
-                                type="password",
-                                placeholder="password"
-                            )
-                        ], width=4)
+                                placeholder="Enter database name",
+                                required=True
+                            ),
+                            html.Small("Name of the database to connect to", className="text-muted")
+                        ], width=12)
                     ])
                 ])
             ], className="mb-4"),
             
-            # SQL Queries section
-            dbc.Row([
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardHeader([
-                            html.H5([
-                                html.I(className="fas fa-table me-2 text-primary"),
-                                "Base Dataset Query"
-                            ], className="mb-0")
-                        ]),
-                        dbc.CardBody([
-                            dbc.Label("SQL Query for Base Dataset:", className="fw-bold mb-2"),
-                            dbc.Textarea(
-                                id="base-sql-query",
-                                placeholder="SELECT * FROM base_table WHERE...",
-                                rows=8,
-                                className="font-monospace",
-                                style={"fontSize": "14px"}
-                            ),
-                            html.Small("Write your SQL query to fetch the base dataset", className="text-muted")
-                        ])
-                    ], className="border-primary")
-                ], width=6),
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardHeader([
-                            html.H5([
-                                html.I(className="fas fa-table me-2 text-success"),
-                                "Compare Dataset Query"
-                            ], className="mb-0")
-                        ]),
-                        dbc.CardBody([
-                            dbc.Label("SQL Query for Compare Dataset:", className="fw-bold mb-2"),
-                            dbc.Textarea(
-                                id="compare-sql-query",
-                                placeholder="SELECT * FROM compare_table WHERE...",
-                                rows=8,
-                                className="font-monospace",
-                                style={"fontSize": "14px"}
-                            ),
-                            html.Small("Write your SQL query to fetch the compare dataset", className="text-muted")
-                        ])
-                    ], className="border-success")
-                ], width=6)
+            # Base SQL Query section
+            dbc.Card([
+                dbc.CardHeader([
+                    html.H6([
+                        html.I(className="fas fa-table me-2 text-primary"),
+                        "Base Dataset SQL Query"
+                    ], className="mb-0")
+                ]),
+                dbc.CardBody([
+                    dbc.Label("SQL Query:", className="fw-bold mb-2"),
+                    dbc.Textarea(
+                        id="sql-step-base-query",
+                        placeholder="SELECT * FROM base_table WHERE condition = 'value'",
+                        rows=10,
+                        className="font-monospace",
+                        style={"fontSize": "14px"},
+                        required=True
+                    ),
+                    html.Small("Write your SQL query to fetch the base dataset", className="text-muted")
+                ])
             ], className="mb-3"),
             
-            # Test connection and preview
-            dbc.Row([
-                dbc.Col([
-                    dbc.ButtonGroup([
-                        dbc.Button([
-                            html.I(className="fas fa-plug me-2"),
-                            "Test Connection"
-                        ], id="test-sql-connection", color="outline-secondary", size="sm"),
-                        dbc.Button([
-                            html.I(className="fas fa-eye me-2"),
-                            "Preview Base"
-                        ], id="preview-base-query", color="outline-primary", size="sm"),
-                        dbc.Button([
-                            html.I(className="fas fa-eye me-2"),
-                            "Preview Compare"
-                        ], id="preview-compare-query", color="outline-success", size="sm")
-                    ], className="w-100")
-                ], width=12)
-            ]),
-            
-            # Status/preview area
-            html.Div(id="sql-query-status", className="mt-3")
+            # Status area
+            html.Div(id="sql-step-status", className="mt-3")
         ]),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="cancel-sql-query", color="secondary", className="me-2"),
+            dbc.Button("Cancel", id="cancel-sql-step", color="secondary", className="me-2"),
             dbc.Button([
-                html.I(className="fas fa-play me-2"),
-                "Execute Queries & Compare"
-            ], id="execute-sql-queries", color="primary", disabled=True)
+                html.I(className="fas fa-arrow-right me-2"),
+                "Next: Compare Dataset"
+            ], id="next-to-compare-step", color="primary")
         ])
     ], 
     id="sql-query-modal", 
-    size="xl",
+    size="lg",
+    backdrop="static",
+    is_open=False,
+    className="custom-modal")
+
+def create_sql_compare_modal():
+    """Create step-by-step SQL query modal - Step 2: Compare Dataset"""
+    return dbc.Modal([
+        dbc.ModalHeader([
+            html.H4([
+                html.I(className="fas fa-copy me-2 text-success"),
+                "Step 2: Compare Dataset Query"
+            ], className="mb-0"),
+            html.Small("Write your SQL query for the compare dataset", className="text-muted")
+        ]),
+        dbc.ModalBody([
+            # Progress indicator
+            dbc.Progress(value=75, color="success", className="mb-4", style={"height": "8px"}),
+            
+            dbc.Alert([
+                html.I(className="fas fa-info-circle me-2"),
+                "Enter your SQL query to fetch the compare dataset. This will be compared against the base dataset."
+            ], color="success", className="mb-4"),
+            
+            # Compare Database name input
+            dbc.Card([
+                dbc.CardHeader([
+                    html.H6([
+                        html.I(className="fas fa-server me-2"),
+                        "Compare Database Information"
+                    ], className="mb-0")
+                ]),
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Database Name:", className="fw-bold"),
+                            dbc.Input(
+                                id="sql-step-compare-database",
+                                type="text",
+                                placeholder="Enter compare database name (can be different from base)",
+                                required=True
+                            ),
+                            html.Small("Name of the database containing your compare dataset", className="text-muted")
+                        ], width=12)
+                    ])
+                ])
+            ], className="mb-4"),
+            
+            # Compare SQL Query section
+            dbc.Card([
+                dbc.CardHeader([
+                    html.H6([
+                        html.I(className="fas fa-table me-2 text-success"),
+                        "Compare Dataset SQL Query"
+                    ], className="mb-0")
+                ]),
+                dbc.CardBody([
+                    dbc.Label("SQL Query:", className="fw-bold mb-2"),
+                    dbc.Textarea(
+                        id="sql-step-compare-query",
+                        placeholder="SELECT * FROM compare_table WHERE condition = 'value'",
+                        rows=10,
+                        className="font-monospace",
+                        style={"fontSize": "14px"},
+                        required=True
+                    ),
+                    html.Small("Write your SQL query to fetch the compare dataset", className="text-muted")
+                ])
+            ], className="mb-3"),
+            
+            # Status area
+            html.Div(id="sql-compare-step-status", className="mt-3")
+        ]),
+        dbc.ModalFooter([
+            dbc.Button([
+                html.I(className="fas fa-arrow-left me-2"),
+                "Back to Base"
+            ], id="back-to-base-step", color="secondary", className="me-2"),
+            dbc.Button([
+                html.I(className="fas fa-play me-2"),
+                "Execute Queries"
+            ], id="execute-step-queries", color="success")
+        ])
+    ], 
+    id="sql-compare-modal", 
+    size="lg",
+    backdrop="static",
+    is_open=False,
+    className="custom-modal")
+
+def create_sql_credentials_popup():
+    """Create credentials popup modal for SQL execution"""
+    return dbc.Modal([
+        dbc.ModalHeader([
+            html.H4([
+                html.I(className="fas fa-key me-2 text-warning"),
+                "Database Credentials"
+            ], className="mb-0"),
+            html.Small("Enter your database credentials to execute queries", className="text-muted")
+        ]),
+        dbc.ModalBody([
+            dbc.Alert([
+                html.I(className="fas fa-shield-alt me-2"),
+                "Your credentials are used only for this session and are not stored."
+            ], color="warning", className="mb-4"),
+            
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Username:", className="fw-bold"),
+                    dbc.Input(
+                        id="sql-exec-username",
+                        type="text",
+                        placeholder="Enter database username",
+                        required=True
+                    )
+                ], width=6),
+                dbc.Col([
+                    dbc.Label("Password:", className="fw-bold"),
+                    dbc.Input(
+                        id="sql-exec-password",
+                        type="password",
+                        placeholder="Enter database password",
+                        required=True
+                    )
+                ], width=6)
+            ]),
+            
+            # Loading spinner area
+            html.Div([
+                dbc.Spinner(
+                    html.Div(id="sql-execution-status"),
+                    color="primary",
+                    type="border",
+                    size="lg",
+                    spinner_style={"display": "none"}
+                )
+            ], id="sql-spinner-container", className="text-center mt-4")
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="cancel-sql-execution", color="secondary", className="me-2"),
+            dbc.Button([
+                html.I(className="fas fa-database me-2"),
+                "Connect & Execute"
+            ], id="connect-and-execute-sql", color="primary")
+        ])
+    ], 
+    id="sql-credentials-popup", 
+    size="md",
     backdrop="static",
     is_open=False,
     className="custom-modal")
