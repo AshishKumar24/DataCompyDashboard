@@ -155,10 +155,8 @@ def handle_sql_execution(execute_clicks, cancel_clicks, compare_database_name, c
 # Callback for executing SQL queries with spinner and parallel execution
 @app.callback(
     [Output("sql-credentials-popup", "is_open", allow_duplicate=True),
-     Output("sql-spinner-container", "children"),
-     Output("data-source-modal", "is_open", allow_duplicate=True),
-     Output("comparison-section", "style", allow_duplicate=True),
-     Output("data-status-section", "style", allow_duplicate=True)],
+     Output("sql-spinner-container", "children", allow_duplicate=True),
+     Output("column-selection-modal", "is_open", allow_duplicate=True)],
     [Input("connect-and-execute-sql", "n_clicks")],
     [State("sql-step-database", "value"),
      State("sql-step-compare-database", "value"),
@@ -169,30 +167,41 @@ def handle_sql_execution(execute_clicks, cancel_clicks, compare_database_name, c
     prevent_initial_call=True
 )
 def execute_sql_queries_parallel(execute_clicks, base_database_name, compare_database_name, base_query, compare_query, username, password):
-    if not execute_clicks or not all([base_database_name, compare_database_name, base_query, compare_query, username, password]):
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    if not execute_clicks:
+        return dash.no_update, dash.no_update, dash.no_update
+    
+    print(f"DEBUG: SQL execution triggered with base_db='{base_database_name}', compare_db='{compare_database_name}'")
+    
+    # Validate all required inputs
+    if not all([base_database_name, compare_database_name, base_query, compare_query, username, password]):
+        error_msg = dbc.Alert([
+            html.I(className="fas fa-exclamation-triangle me-2"),
+            "Please fill all required fields before executing queries."
+        ], color="danger", className="text-center")
+        return dash.no_update, error_msg, dash.no_update
     
     try:
+        print(f"DEBUG: Starting parallel SQL execution...")
+        
         # Show spinner while executing
         spinner_content = dbc.Spinner([
             html.Div([
                 html.H5("Executing SQL Queries...", className="text-center mb-3"),
-                html.P("Running base and compare queries in parallel", className="text-center text-muted"),
+                html.P(f"Running queries on databases: {base_database_name} and {compare_database_name}", 
+                       className="text-center text-muted"),
                 dbc.Progress(value=50, animated=True, color="primary", className="mb-2"),
                 html.Small("This may take a few moments", className="text-center text-muted d-block")
             ])
         ], color="primary", type="border", size="lg")
         
-        # Here you would implement the actual SQL execution logic
-        # For now, we'll simulate successful execution with database info
+        # Simulate SQL execution logic with database info
         import time
-        import threading
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import ThreadPoolExecutor
         
         def execute_query(query, query_type, database_name):
             """Simulate SQL query execution"""
-            time.sleep(2)  # Simulate query execution time
-            # In real implementation, this would connect to database and execute query
+            print(f"DEBUG: Executing {query_type} query on {database_name}")
+            time.sleep(1)  # Reduced time for testing
             return f"{query_type} query executed successfully on database '{database_name}'"
         
         # Execute queries in parallel with their respective databases
@@ -203,21 +212,22 @@ def execute_sql_queries_parallel(execute_clicks, base_database_name, compare_dat
             base_result = base_future.result()
             compare_result = compare_future.result()
         
-        # Success - close popup and show column selection
+        print(f"DEBUG: SQL execution completed successfully")
+        
+        # Success - close popup, show success message, and open column selection
+        success_content = dbc.Alert([
+            html.I(className="fas fa-check-circle me-2"),
+            f"Queries executed successfully! Base: {base_database_name}, Compare: {compare_database_name}"
+        ], color="success", className="text-center")
+        
         return (
             False,  # Close credentials popup
-            html.Div([  # Success message
-                dbc.Alert([
-                    html.I(className="fas fa-check-circle me-2"),
-                    "Queries executed successfully! Now select columns for comparison."
-                ], color="success", className="text-center")
-            ]),
-            False,  # Close data source modal
-            {"display": "none"},  # Keep comparison section hidden until columns selected
-            {"display": "block"}   # Show data status section
+            success_content,  # Show success message
+            True   # Open column selection modal
         )
         
     except Exception as e:
+        print(f"DEBUG: SQL execution error: {str(e)}")
         # Error handling
         error_content = dbc.Alert([
             html.I(className="fas fa-exclamation-triangle me-2"),
@@ -227,40 +237,10 @@ def execute_sql_queries_parallel(execute_clicks, base_database_name, compare_dat
         return (
             dash.no_update,  # Keep popup open
             error_content,   # Show error
-            dash.no_update,
-            dash.no_update,
-            dash.no_update
+            dash.no_update   # Don't open column selection
         )
 
-# Callback to open column selection modal after SQL execution
-@app.callback(
-    Output("column-selection-modal", "is_open", allow_duplicate=True),
-    [Input("connect-and-execute-sql", "n_clicks")],
-    [State("sql-step-database", "value"),
-     State("sql-step-compare-database", "value"),
-     State("sql-step-base-query", "value"),
-     State("sql-step-compare-query", "value"),
-     State("sql-exec-username", "value"),
-     State("sql-exec-password", "value")],
-    prevent_initial_call=True
-)
-def open_column_selection_after_sql(execute_clicks, base_database_name, compare_database_name, base_query, compare_query, username, password):
-    if not execute_clicks or not all([base_database_name, compare_database_name, base_query, compare_query, username, password]):
-        return dash.no_update
-    
-    # Simulate successful SQL execution and open column selection
-    try:
-        # In real implementation, you would:
-        # 1. Execute the SQL queries on their respective databases
-        # 2. Get column information from the results
-        # 3. Store the data for later use
-        
-        print(f"DEBUG: Opening column selection after SQL execution on databases: base='{base_database_name}', compare='{compare_database_name}'")
-        
-        # For now, we'll just open the column selection modal
-        return True
-    except Exception:
-        return dash.no_update
+
 
 
 
@@ -288,27 +268,17 @@ def open_modal_from_initial_button(n_clicks, is_open):
         return True
     return is_open
 
-# Callback for SQL credentials modal
+# Callback for SQL query workflow
 @app.callback(
-    Output("sql-credentials-modal", "is_open"),
-    [Input("sql-option", "n_clicks"),
-     Input("close-sql-modal", "n_clicks"),
-     Input("connect-sql", "n_clicks")],
-    [State("sql-credentials-modal", "is_open")]
+    [Output("data-source-modal", "is_open", allow_duplicate=True),
+     Output("sql-query-modal", "is_open", allow_duplicate=True)],
+    [Input("sql-query-option", "n_clicks")],
+    prevent_initial_call=True
 )
-def toggle_sql_modal(sql_clicks, close_clicks, connect_clicks, is_open):
-    ctx = callback_context
-    if not ctx.triggered:
-        return is_open
-    
-    trigger = ctx.triggered[0]['prop_id'].split('.')[0]
-    
-    if trigger == "sql-option":
-        return True
-    elif trigger in ["close-sql-modal", "connect-sql"]:
-        return False
-    
-    return is_open
+def open_sql_query_workflow(sql_clicks):
+    if sql_clicks:
+        return False, True  # Close data source modal, open SQL query modal
+    return dash.no_update, dash.no_update
 
 # Callback for Start Comparison button
 @app.callback(
