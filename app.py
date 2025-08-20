@@ -183,25 +183,27 @@ def execute_sql_queries_parallel(execute_clicks, base_database_name, compare_dat
     try:
         print(f"DEBUG: Starting parallel SQL execution...")
         
-        # Show spinner while executing
-        spinner_content = dbc.Spinner([
-            html.Div([
-                html.H5("Executing SQL Queries...", className="text-center mb-3"),
-                html.P(f"Running queries on databases: {base_database_name} and {compare_database_name}", 
-                       className="text-center text-muted"),
-                dbc.Progress(value=50, animated=True, color="primary", className="mb-2"),
-                html.Small("This may take a few moments", className="text-center text-muted d-block")
-            ])
-        ], color="primary", type="border", size="lg")
+        # First return the spinner immediately
+        spinner_content = html.Div([
+            dbc.Spinner([
+                html.Div([
+                    html.H5("Executing SQL Queries...", className="text-center mb-3"),
+                    html.P(f"Running queries on databases: {base_database_name} and {compare_database_name}", 
+                           className="text-center text-muted"),
+                    dbc.Progress(value=50, animated=True, color="primary", className="mb-2"),
+                    html.Small("This may take a few moments", className="text-center text-muted d-block")
+                ])
+            ], color="primary", type="border", size="lg", spinner_style={"width": "3rem", "height": "3rem"})
+        ], className="d-flex justify-content-center py-4")
         
-        # Simulate SQL execution logic with database info
+        # Return spinner immediately, let execution happen in background
         import time
         from concurrent.futures import ThreadPoolExecutor
         
         def execute_query(query, query_type, database_name):
             """Simulate SQL query execution"""
             print(f"DEBUG: Executing {query_type} query on {database_name}")
-            time.sleep(1)  # Reduced time for testing
+            time.sleep(2)  # Simulate actual database query time
             return f"{query_type} query executed successfully on database '{database_name}'"
         
         # Execute queries in parallel with their respective databases
@@ -673,10 +675,13 @@ def populate_dataset_info(is_open, base_data, compare_data):
     except:
         return html.Div()
 
+# Column sort state managed in layout.py stores
+
 # Callback for populating join column checkboxes
 @app.callback(
     [Output("join-column-checkboxes", "children"),
-     Output("run-comparison-from-modal", "disabled")],
+     Output("run-comparison-from-modal", "disabled"),
+     Output("join-sort-state", "data")],
     [Input("column-selection-modal", "is_open"),
      Input("join-column-search", "value"),
      Input("select-all-join", "n_clicks"),
@@ -684,11 +689,12 @@ def populate_dataset_info(is_open, base_data, compare_data):
      Input("sort-join-columns", "n_clicks")],
     [State("base-data-store", "data"),
      State("compare-data-store", "data"),
-     State("join-column-checkboxes", "children")]
+     State("join-columns-checklist", "value"),
+     State("join-sort-state", "data")]
 )
-def populate_join_columns(is_open, search_value, select_all, clear_all, sort_cols, base_data, compare_data, current_checkboxes):
+def populate_join_columns(is_open, search_value, select_all, clear_all, sort_cols, base_data, compare_data, current_selection, sort_state):
     if not is_open or not base_data or not compare_data:
-        return html.Div(), True
+        return html.Div(), True, {"is_sorted": False}
     
     try:
         base_df = pd.read_json(io.StringIO(base_data), orient='split')
@@ -703,16 +709,28 @@ def populate_join_columns(is_open, search_value, select_all, clear_all, sort_col
         if search_value:
             common_cols = [col for col in common_cols if search_value.lower() in col.lower()]
         
-        # Apply sorting
+        # Manage sorting state
         ctx = callback_context
-        if ctx.triggered and "sort-join-columns" in ctx.triggered[0]['prop_id']:
+        is_sorted = sort_state.get("is_sorted", False) if sort_state else False
+        
+        if ctx.triggered:
+            trigger = ctx.triggered[0]['prop_id'].split('.')[0]
+            if trigger == "sort-join-columns":
+                is_sorted = not is_sorted  # Toggle sort state
+                print(f"DEBUG: Join columns sort toggled, now sorted: {is_sorted}")
+        
+        # Apply sorting based on current state
+        if is_sorted:
             common_cols = sorted(common_cols)
         
-        # Handle select/clear all and preserve existing selections
-        selected_values = []
+        # Preserve current selections when possible
+        selected_values = current_selection if current_selection else []
+        
+        # Handle button actions
         if ctx.triggered:
             trigger = ctx.triggered[0]['prop_id'].split('.')[0]
             print(f"DEBUG: Join columns trigger: {trigger}")
+            
             if trigger == "select-all-join":
                 selected_values = common_cols
                 print(f"DEBUG: Selected all join columns: {selected_values}")
@@ -724,6 +742,9 @@ def populate_join_columns(is_open, search_value, select_all, clear_all, sort_col
                 selected_values = [common_cols[0]] if common_cols else []
                 print(f"DEBUG: Modal opened, pre-selected: {selected_values}")
         
+        # Filter selected values to only include available columns
+        selected_values = [val for val in selected_values if val in common_cols]
+        
         checkboxes = dbc.Checklist(
             id="join-columns-checklist",
             options=[{"label": col, "value": col} for col in common_cols],
@@ -733,25 +754,28 @@ def populate_join_columns(is_open, search_value, select_all, clear_all, sort_col
         
         is_disabled = len(selected_values) == 0
         print(f"DEBUG: Join columns selected: {selected_values}, button disabled: {is_disabled}")
-        return checkboxes, is_disabled
+        return checkboxes, is_disabled, {"is_sorted": is_sorted}
         
     except Exception as e:
-        return html.Div(f"Error: {str(e)}"), True
+        return html.Div(f"Error: {str(e)}"), True, {"is_sorted": False}
 
 # Callback for populating compare column checkboxes
 @app.callback(
-    Output("compare-column-checkboxes", "children"),
+    [Output("compare-column-checkboxes", "children"),
+     Output("compare-sort-state", "data")],
     [Input("column-selection-modal", "is_open"),
      Input("compare-column-search", "value"),
      Input("select-all-compare", "n_clicks"),
      Input("clear-all-compare", "n_clicks"),
      Input("sort-compare-columns", "n_clicks")],
     [State("base-data-store", "data"),
-     State("compare-data-store", "data")]
+     State("compare-data-store", "data"),
+     State("compare-columns-checklist", "value"),
+     State("compare-sort-state", "data")]
 )
-def populate_compare_columns(is_open, search_value, select_all, clear_all, sort_cols, base_data, compare_data):
+def populate_compare_columns(is_open, search_value, select_all, clear_all, sort_cols, base_data, compare_data, current_checklist_value, sort_state):
     if not is_open or not base_data or not compare_data:
-        return html.Div()
+        return html.Div(), {"is_sorted": False}
     
     try:
         base_df = pd.read_json(io.StringIO(base_data), orient='split')
@@ -766,19 +790,37 @@ def populate_compare_columns(is_open, search_value, select_all, clear_all, sort_
         if search_value:
             common_cols = [col for col in common_cols if search_value.lower() in col.lower()]
         
-        # Apply sorting
+        # Manage sorting state
         ctx = callback_context
-        if ctx.triggered and "sort-compare-columns" in ctx.triggered[0]['prop_id']:
-            common_cols = sorted(common_cols)
+        is_sorted = sort_state.get("is_sorted", False) if sort_state else False
         
-        # Handle select/clear all
-        selected_values = []
         if ctx.triggered:
             trigger = ctx.triggered[0]['prop_id'].split('.')[0]
+            if trigger == "sort-compare-columns":
+                is_sorted = not is_sorted  # Toggle sort state
+                print(f"DEBUG: Compare columns sort toggled, now sorted: {is_sorted}")
+        
+        # Apply sorting based on current state
+        if is_sorted:
+            common_cols = sorted(common_cols)
+        
+        # Preserve current selections when possible
+        selected_values = current_checklist_value if current_checklist_value else []
+        
+        # Handle button actions
+        if ctx.triggered:
+            trigger = ctx.triggered[0]['prop_id'].split('.')[0]
+            print(f"DEBUG: Compare columns trigger: {trigger}")
+            
             if trigger == "select-all-compare":
                 selected_values = common_cols
+                print(f"DEBUG: Selected all compare columns: {selected_values}")
             elif trigger == "clear-all-compare":
                 selected_values = []
+                print(f"DEBUG: Cleared all compare columns")
+        
+        # Filter selected values to only include available columns
+        selected_values = [val for val in selected_values if val in common_cols]
         
         checkboxes = dbc.Checklist(
             id="compare-columns-checklist",
@@ -787,12 +829,13 @@ def populate_compare_columns(is_open, search_value, select_all, clear_all, sort_
             className="checkbox-list"
         )
         
-        return checkboxes
+        print(f"DEBUG: Compare columns selected: {selected_values}")
+        return checkboxes, {"is_sorted": is_sorted}
         
     except Exception as e:
-        return html.Div(f"Error: {str(e)}")
+        return html.Div(f"Error: {str(e)}"), {"is_sorted": False}
 
-# Callback to enable/disable the run button based on join column selection
+# Callback to enable/disable the run button based on join column selection  
 @app.callback(
     Output("run-comparison-from-modal", "disabled", allow_duplicate=True),
     [Input("join-columns-checklist", "value")],
@@ -801,7 +844,7 @@ def populate_compare_columns(is_open, search_value, select_all, clear_all, sort_
 def update_run_button_status(join_cols):
     return not bool(join_cols)  # Disable if no join columns selected
 
-# Callback for running comparison from modal
+# Callback for running comparison from modal with loading spinner
 @app.callback(
     [Output("column-selection-modal", "is_open", allow_duplicate=True),
      Output("comparison-results", "children", allow_duplicate=True)],
@@ -817,6 +860,18 @@ def run_comparison_from_modal(n_clicks, base_data, compare_data, join_cols, comp
         return dash.no_update, dash.no_update
     
     try:
+        # Show loading spinner immediately
+        loading_spinner = html.Div([
+            dbc.Spinner([
+                html.Div([
+                    html.H4("Running Data Comparison...", className="text-center mb-3"),
+                    html.P("Analyzing differences between datasets", className="text-center text-muted"),
+                    dbc.Progress(value=75, animated=True, color="success", className="mb-2"),
+                    html.Small("This may take a few moments depending on dataset size", className="text-center text-muted d-block")
+                ])
+            ], color="success", type="border", size="lg", spinner_style={"width": "3rem", "height": "3rem"})
+        ], className="d-flex justify-content-center py-5")
+        
         base_df = pd.read_json(io.StringIO(base_data), orient='split')
         compare_df = pd.read_json(io.StringIO(compare_data), orient='split')
         
@@ -824,6 +879,10 @@ def run_comparison_from_modal(n_clicks, base_data, compare_data, join_cols, comp
             return dash.no_update, dbc.Alert("Please select at least one join column", color="warning")
         
         print(f"DEBUG: Running comparison with join_cols: {join_cols}, compare_cols: {compare_cols}")
+        
+        # Simulate processing time for large datasets
+        import time
+        time.sleep(1)  # Brief delay to show spinner
         
         # Run datacompy comparison
         results = data_handler.run_comparison(base_df, compare_df, join_cols, compare_cols)
@@ -833,11 +892,17 @@ def run_comparison_from_modal(n_clicks, base_data, compare_data, join_cols, comp
         comparison_id = duckdb_handler.store_comparison_results(results)
         results['comparison_id'] = comparison_id
         
+        print(f"DEBUG: Comparison completed successfully")
+        
         return False, create_comparison_section(results)  # Close modal and show results
         
     except Exception as e:
         print(f"DEBUG: Comparison error: {str(e)}")
-        return dash.no_update, dbc.Alert(f"Comparison Error: {str(e)}", color="danger")
+        error_alert = dbc.Alert([
+            html.I(className="fas fa-exclamation-triangle me-2"),
+            f"Comparison Error: {str(e)}"
+        ], color="danger", className="mt-3")
+        return dash.no_update, error_alert
 
 # Callback for loading demo data
 @app.callback(
@@ -883,9 +948,133 @@ def update_theme(theme_id):
     # Return empty div - theme styling handled via CSS classes
     return html.Div()
 
+# Session Management Callbacks
+@app.callback(
+    [Output("session-info-display", "children"),
+     Output("session-files-display", "children")],
+    [Input("refresh-session-info", "n_clicks"),
+     Input("configuration-modal", "is_open")],
+    prevent_initial_call=True
+)
+def update_session_information(refresh_clicks, modal_open):
+    """Update session information display"""
+    if not modal_open:
+        return dash.no_update, dash.no_update
+    
+    try:
+        # Current session info
+        session_info_card = dbc.Row([
+            dbc.Col([
+                dbc.Badge(f"Session ID: {duckdb_handler.session_id}", color="primary", className="mb-2")
+            ], width=12),
+            dbc.Col([
+                html.P([
+                    html.Strong("Database Path: "),
+                    html.Code(duckdb_handler.db_path)
+                ], className="mb-2"),
+                html.P([
+                    html.Strong("Connection Status: "),
+                    dbc.Badge("Connected" if duckdb_handler.conn else "Disconnected", 
+                             color="success" if duckdb_handler.conn else "danger")
+                ], className="mb-0")
+            ], width=12)
+        ])
+        
+        # Session files info
+        from utils.duckdb_handler import DuckDBHandler
+        session_files = DuckDBHandler.get_session_files_info()
+        
+        if not session_files:
+            files_display = dbc.Alert("No session files found", color="info")
+        else:
+            total_size = sum(file['size_mb'] for file in session_files)
+            
+            files_table = dbc.Table([
+                html.Thead([
+                    html.Tr([
+                        html.Th("Filename"),
+                        html.Th("Size (MB)"),
+                        html.Th("Age (hours)")
+                    ])
+                ]),
+                html.Tbody([
+                    html.Tr([
+                        html.Td(file['filename']),
+                        html.Td(f"{file['size_mb']:.2f}"),
+                        html.Td(f"{file['age_hours']:.1f}")
+                    ]) for file in session_files[:10]  # Show first 10 files
+                ])
+            ], striped=True, hover=True, size="sm")
+            
+            files_display = html.Div([
+                dbc.Alert([
+                    html.Strong(f"Total: {len(session_files)} files"),
+                    html.Span(f" • {total_size:.2f} MB total size")
+                ], color="light", className="mb-3"),
+                files_table,
+                html.Small(f"Showing {min(10, len(session_files))} of {len(session_files)} files", 
+                          className="text-muted") if len(session_files) > 10 else ""
+            ])
+        
+        return session_info_card, files_display
+        
+    except Exception as e:
+        error_message = dbc.Alert(f"Error loading session info: {str(e)}", color="danger")
+        return error_message, error_message
+
+@app.callback(
+    Output("cleanup-status", "children"),
+    [Input("cleanup-old-sessions", "n_clicks"),
+     Input("force-cleanup-sessions", "n_clicks")],
+    [State("cleanup-threshold", "value")],
+    prevent_initial_call=True
+)
+def handle_session_cleanup(cleanup_old_clicks, force_cleanup_clicks, threshold_hours):
+    """Handle session cleanup actions"""
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return dash.no_update
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    try:
+        if button_id == "cleanup-old-sessions":
+            # Clean old sessions based on threshold
+            threshold = threshold_hours or 24
+            old_count = len([f for f in duckdb_handler.get_session_files_info() 
+                           if f['age_hours'] > threshold])
+            
+            duckdb_handler._cleanup_old_sessions(max_age_hours=threshold)
+            
+            return dbc.Alert([
+                html.I(className="fas fa-check-circle me-2"),
+                f"Successfully cleaned {old_count} session files older than {threshold} hours."
+            ], color="success", dismissable=True)
+            
+        elif button_id == "force-cleanup-sessions":
+            # Force cleanup all sessions except current
+            cleaned_count = duckdb_handler.force_cleanup_all_sessions()
+            
+            return dbc.Alert([
+                html.I(className="fas fa-trash-alt me-2"),
+                f"Force cleaned {cleaned_count} session files. Warning: This removed all session files."
+            ], color="warning", dismissable=True)
+            
+    except Exception as e:
+        return dbc.Alert([
+            html.I(className="fas fa-exclamation-triangle me-2"),
+            f"Cleanup error: {str(e)}"
+        ], color="danger", dismissable=True)
+    
+    return dash.no_update
+
 # Add dynamic CSS container to layout - Fixed approach
 main_layout = create_main_layout()
-main_layout.children.append(html.Div(id="dynamic-theme-css"))
+if hasattr(main_layout, 'children') and main_layout.children is not None:
+    main_layout.children.append(html.Div(id="dynamic-theme-css"))
+else:
+    # Fallback if children is None
+    main_layout = html.Div([main_layout, html.Div(id="dynamic-theme-css")])
 app.layout = main_layout
 
 if __name__ == "__main__":
