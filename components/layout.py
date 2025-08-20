@@ -13,6 +13,8 @@ def create_main_layout():
         # Data stores
         dcc.Store(id="base-data-store"),
         dcc.Store(id="compare-data-store"),
+        dcc.Store(id="join-sort-state", data={"is_sorted": False}),
+        dcc.Store(id="compare-sort-state", data={"is_sorted": False}),
         
         # Overlay div for background greying
         html.Div(id="overlay", className="overlay"),
