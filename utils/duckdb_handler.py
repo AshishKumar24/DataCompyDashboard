@@ -2,8 +2,11 @@ import duckdb
 import pandas as pd
 import uuid
 import os
+import glob
+import time
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+import atexit
 
 class DuckDBHandler:
     """Handle DuckDB operations for session-based data storage"""
@@ -11,8 +14,43 @@ class DuckDBHandler:
     def __init__(self, session_id: str = None):
         self.session_id = session_id or str(uuid.uuid4())
         self.db_path = f"session_{self.session_id}.duckdb"
+        
+        # Clean up old session files before creating new session
+        self._cleanup_old_sessions()
+        
         self.conn = duckdb.connect(self.db_path)
         self._initialize_schema()
+        
+        # Register cleanup to run when app exits
+        atexit.register(self.cleanup_current_session)
+    
+    def _cleanup_old_sessions(self, max_age_hours: int = 24):
+        """Clean up old DuckDB session files to prevent storage accumulation"""
+        try:
+            # Get all session files matching the pattern
+            session_files = glob.glob("session_*.duckdb*")
+            current_time = time.time()
+            cleaned_count = 0
+            
+            for file_path in session_files:
+                try:
+                    # Check file age
+                    file_age_hours = (current_time - os.path.getmtime(file_path)) / 3600
+                    
+                    if file_age_hours > max_age_hours:
+                        os.remove(file_path)
+                        cleaned_count += 1
+                        print(f"DEBUG: Cleaned up old session file: {file_path}")
+                        
+                except Exception as e:
+                    print(f"DEBUG: Could not remove session file {file_path}: {e}")
+                    continue
+            
+            if cleaned_count > 0:
+                print(f"DEBUG: Cleaned up {cleaned_count} old session files (older than {max_age_hours} hours)")
+                
+        except Exception as e:
+            print(f"DEBUG: Error during session cleanup: {e}")
     
     def _initialize_schema(self):
         """Initialize the database schema"""
@@ -299,13 +337,88 @@ class DuckDBHandler:
             print(f"Error getting column stats: {e}")
             return pd.DataFrame()
     
-    def cleanup(self):
-        """Close connection and optionally clean up database file"""
+    def cleanup_current_session(self):
+        """Clean up the current session and its files"""
         try:
-            if self.conn:
+            # Close the database connection first
+            if hasattr(self, 'conn') and self.conn:
                 self.conn.close()
-        except:
-            pass
+                print(f"DEBUG: Closed DuckDB connection for session {self.session_id}")
+            
+            # Remove current session files
+            session_files = [
+                self.db_path,
+                f"{self.db_path}.wal",  # Write-ahead log file
+                f"{self.db_path}.tmp"   # Temporary files
+            ]
+            
+            for file_path in session_files:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        print(f"DEBUG: Removed session file: {file_path}")
+                    except Exception as e:
+                        print(f"DEBUG: Could not remove {file_path}: {e}")
+                        
+        except Exception as e:
+            print(f"DEBUG: Error during current session cleanup: {e}")
+    
+    def cleanup(self):
+        """Close connection but keep database file for session persistence"""
+        try:
+            if hasattr(self, 'conn') and self.conn:
+                self.conn.close()
+        except Exception as e:
+            print(f"DEBUG: Error closing DuckDB connection: {e}")
+    
+    def force_cleanup_all_sessions(self):
+        """Force cleanup of all session files (use with caution)"""
+        try:
+            session_files = glob.glob("session_*.duckdb*")
+            cleaned_count = 0
+            
+            for file_path in session_files:
+                try:
+                    os.remove(file_path)
+                    cleaned_count += 1
+                    print(f"DEBUG: Force removed session file: {file_path}")
+                except Exception as e:
+                    print(f"DEBUG: Could not remove session file {file_path}: {e}")
+                    continue
+            
+            print(f"DEBUG: Force cleaned {cleaned_count} session files")
+            return cleaned_count
+            
+        except Exception as e:
+            print(f"DEBUG: Error during force cleanup: {e}")
+            return 0
+    
+    @staticmethod
+    def get_session_files_info():
+        """Get information about current session files"""
+        try:
+            session_files = glob.glob("session_*.duckdb*")
+            file_info = []
+            
+            for file_path in session_files:
+                try:
+                    file_size = os.path.getsize(file_path)
+                    file_age = time.time() - os.path.getmtime(file_path)
+                    
+                    file_info.append({
+                        'filename': file_path,
+                        'size_mb': round(file_size / (1024 * 1024), 2),
+                        'age_hours': round(file_age / 3600, 1)
+                    })
+                except Exception as e:
+                    print(f"DEBUG: Error getting info for {file_path}: {e}")
+                    continue
+            
+            return file_info
+            
+        except Exception as e:
+            print(f"DEBUG: Error getting session files info: {e}")
+            return []
     
     def __del__(self):
         self.cleanup()

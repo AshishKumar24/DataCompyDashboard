@@ -22,6 +22,11 @@ def create_comparison_section(results):
         compare_only_rows = results.get('compare_only_rows', 0)
         match_rate = results.get('match_rate', 0)
         
+        # Extract expansion flags
+        expand_mismatch = results.get('expand_mismatch', False)
+        expand_base = results.get('expand_base', False)
+        expand_compare = results.get('expand_compare', False)
+        
         # Get DataFrames from comparison object
         unq_base_df = comparison.df1_unq_rows if hasattr(comparison, 'df1_unq_rows') else pd.DataFrame()
         unq_compare_df = comparison.df2_unq_rows if hasattr(comparison, 'df2_unq_rows') else pd.DataFrame()
@@ -234,7 +239,7 @@ def create_comparison_section(results):
                                 dbc.Card([
                                     dbc.CardHeader("Sample Mismatched Records"),
                                     dbc.CardBody([
-                                        create_mismatch_data_table(all_mismatches_df)
+                                        create_mismatch_data_table(all_mismatches_df, expand_mismatch)
                                     ])
                                 ])
                             ], width=6)
@@ -250,7 +255,7 @@ def create_comparison_section(results):
                                 dbc.Card([
                                     dbc.CardHeader("Rows Only in Base Dataset"),
                                     dbc.CardBody([
-                                        create_unique_rows_data_table(unq_base_df, "base")
+                                        create_unique_rows_data_table(unq_base_df, "base", expand_base)
                                     ])
                                 ])
                             ], width=6),
@@ -258,7 +263,7 @@ def create_comparison_section(results):
                                 dbc.Card([
                                     dbc.CardHeader("Rows Only in Compare Dataset"),
                                     dbc.CardBody([
-                                        create_unique_rows_data_table(unq_compare_df, "compare")
+                                        create_unique_rows_data_table(unq_compare_df, "compare", expand_compare)
                                     ])
                                 ])
                             ], width=6)

@@ -35,7 +35,7 @@ def create_welcome_modal():
     size="lg")
 
 def create_configuration_modal():
-    """Create configuration modal for changing join/compare columns"""
+    """Create configuration modal for changing join/compare columns and session management"""
     return dbc.Modal([
         dbc.ModalHeader([
             html.H4([
@@ -44,54 +44,158 @@ def create_configuration_modal():
             ], className="mb-0")
         ]),
         dbc.ModalBody([
-            html.Div(id="config-dataset-info"),
-            dbc.Alert([
-                html.I(className="fas fa-info-circle me-2"),
-                "Tip: You can reconfigure join and compare columns here and run a new comparison with different settings."
-            ], color="info", className="mb-3"),
-            html.Hr(),
-            dbc.Row([
-                dbc.Col([
-                    html.Label("Join Columns:", className="form-label fw-bold"),
-                    html.Div([
-                        dbc.InputGroup([
-                            dbc.Input(
-                                id="config-join-search",
-                                placeholder="Search columns...",
-                                type="text"
-                            ),
-                            dbc.Button([
-                                html.I(className="fas fa-sort-alpha-down")
-                            ], id="config-sort-join", outline=True, color="secondary")
-                        ], className="mb-2"),
-                        dbc.ButtonGroup([
-                            dbc.Button("Select All", id="config-select-all-join", outline=True, color="primary", size="sm"),
-                            dbc.Button("Clear All", id="config-clear-all-join", outline=True, color="secondary", size="sm")
-                        ], className="mb-3")
-                    ]),
-                    html.Div(id="config-join-checkboxes")
-                ], width=6),
-                dbc.Col([
-                    html.Label("Compare Columns (optional):", className="form-label fw-bold"),
-                    html.Div([
-                        dbc.InputGroup([
-                            dbc.Input(
-                                id="config-compare-search",
-                                placeholder="Search columns...",
-                                type="text"
-                            ),
-                            dbc.Button([
-                                html.I(className="fas fa-sort-alpha-down")
-                            ], id="config-sort-compare", outline=True, color="secondary")
-                        ], className="mb-2"),
-                        dbc.ButtonGroup([
-                            dbc.Button("Select All", id="config-select-all-compare", outline=True, color="primary", size="sm"),
-                            dbc.Button("Clear All", id="config-clear-all-compare", outline=True, color="secondary", size="sm")
-                        ], className="mb-3")
-                    ]),
-                    html.Div(id="config-compare-checkboxes")
-                ], width=6)
-            ])
+            # Navigation tabs for different configuration sections
+            dbc.Tabs([
+                # Column Configuration Tab
+                dbc.Tab(
+                    label="Column Configuration",
+                    tab_id="column-config-tab",
+                    children=[
+                        html.Div([
+                            html.Div(id="config-dataset-info"),
+                            dbc.Alert([
+                                html.I(className="fas fa-info-circle me-2"),
+                                "Tip: You can reconfigure join and compare columns here and run a new comparison with different settings."
+                            ], color="info", className="mb-3"),
+                            html.Hr(),
+                            dbc.Row([
+                                dbc.Col([
+                                    html.Label("Join Columns:", className="form-label fw-bold"),
+                                    html.Div([
+                                        dbc.InputGroup([
+                                            dbc.Input(
+                                                id="config-join-search",
+                                                placeholder="Search columns...",
+                                                type="text"
+                                            ),
+                                            dbc.Button([
+                                                html.I(className="fas fa-sort-alpha-down")
+                                            ], id="config-sort-join", outline=True, color="secondary")
+                                        ], className="mb-2"),
+                                        dbc.ButtonGroup([
+                                            dbc.Button("Select All", id="config-select-all-join", outline=True, color="primary", size="sm"),
+                                            dbc.Button("Clear All", id="config-clear-all-join", outline=True, color="secondary", size="sm")
+                                        ], className="mb-3")
+                                    ]),
+                                    html.Div(id="config-join-checkboxes")
+                                ], width=6),
+                                dbc.Col([
+                                    html.Label("Compare Columns (optional):", className="form-label fw-bold"),
+                                    html.Div([
+                                        dbc.InputGroup([
+                                            dbc.Input(
+                                                id="config-compare-search",
+                                                placeholder="Search columns...",
+                                                type="text"
+                                            ),
+                                            dbc.Button([
+                                                html.I(className="fas fa-sort-alpha-down")
+                                            ], id="config-sort-compare", outline=True, color="secondary")
+                                        ], className="mb-2"),
+                                        dbc.ButtonGroup([
+                                            dbc.Button("Select All", id="config-select-all-compare", outline=True, color="primary", size="sm"),
+                                            dbc.Button("Clear All", id="config-clear-all-compare", outline=True, color="secondary", size="sm")
+                                        ], className="mb-3")
+                                    ]),
+                                    html.Div(id="config-compare-checkboxes")
+                                ], width=6)
+                            ])
+                        ], className="p-3")
+                    ]
+                ),
+                # Session Management Tab
+                dbc.Tab(
+                    label="Session Management",
+                    tab_id="session-config-tab",
+                    children=[
+                        html.Div([
+                            dbc.Alert([
+                                html.I(className="fas fa-database me-2"),
+                                "Manage DuckDB session files to optimize storage and performance."
+                            ], color="primary", className="mb-3"),
+                            
+                            # Session Information Card
+                            dbc.Card([
+                                dbc.CardHeader([
+                                    html.H6([
+                                        html.I(className="fas fa-info-circle me-2"),
+                                        "Current Session Information"
+                                    ], className="mb-0")
+                                ]),
+                                dbc.CardBody([
+                                    html.Div(id="session-info-display", children=[
+                                        dbc.Spinner(html.Div(id="loading-session-info"), color="primary")
+                                    ])
+                                ])
+                            ], className="mb-3"),
+                            
+                            # Session Files Overview Card
+                            dbc.Card([
+                                dbc.CardHeader([
+                                    html.H6([
+                                        html.I(className="fas fa-file-alt me-2"),
+                                        "Session Files Overview"
+                                    ], className="mb-0")
+                                ]),
+                                dbc.CardBody([
+                                    html.Div(id="session-files-display", children=[
+                                        dbc.Spinner(html.Div(id="loading-session-files"), color="primary")
+                                    ]),
+                                    html.Hr(),
+                                    # Cleanup Controls
+                                    dbc.Row([
+                                        dbc.Col([
+                                            dbc.ButtonGroup([
+                                                dbc.Button([
+                                                    html.I(className="fas fa-sync-alt me-2"),
+                                                    "Refresh Info"
+                                                ], id="refresh-session-info", color="info", outline=True),
+                                                dbc.Button([
+                                                    html.I(className="fas fa-broom me-2"),
+                                                    "Clean Old Files"
+                                                ], id="cleanup-old-sessions", color="warning", outline=True),
+                                                dbc.Button([
+                                                    html.I(className="fas fa-trash-alt me-2"),
+                                                    "Force Clean All"
+                                                ], id="force-cleanup-sessions", color="danger", outline=True)
+                                            ], vertical=False, className="w-100")
+                                        ], width=12)
+                                    ]),
+                                    html.Div(id="cleanup-status", className="mt-3")
+                                ])
+                            ], className="mb-3"),
+                            
+                            # Advanced Settings Card
+                            dbc.Card([
+                                dbc.CardHeader([
+                                    html.H6([
+                                        html.I(className="fas fa-sliders-h me-2"),
+                                        "Advanced Settings"
+                                    ], className="mb-0")
+                                ]),
+                                dbc.CardBody([
+                                    dbc.Row([
+                                        dbc.Col([
+                                            dbc.Label("Auto-cleanup threshold (hours):", className="fw-bold"),
+                                            dbc.Input(
+                                                id="cleanup-threshold",
+                                                type="number",
+                                                value=24,
+                                                min=1,
+                                                max=168,
+                                                step=1,
+                                                className="mb-2"
+                                            ),
+                                            html.Small("Files older than this will be automatically removed on startup", 
+                                                     className="text-muted")
+                                        ], width=12)
+                                    ])
+                                ])
+                            ])
+                        ], className="p-3")
+                    ]
+                )
+            ], id="config-tabs", active_tab="column-config-tab")
         ]),
         dbc.ModalFooter([
             dbc.Button("Cancel", id="config-cancel", color="secondary", className="me-2"),
@@ -401,33 +505,25 @@ def create_column_selection_modal():
                     html.Small("Select columns to join/match records between datasets", className="text-muted")
                 ]),
                 dbc.CardBody([
-                    # Search for join columns
-                    dbc.InputGroup([
-                        dbc.InputGroupText(html.I(className="fas fa-search")),
-                        dbc.Input(
-                            id="join-column-search",
-                            placeholder="Search join columns...",
-                            type="text"
-                        )
-                    ], className="mb-3"),
-                    
-                    # Join column options
+                    # Join column dropdown
+                    dbc.Label("Select join columns:", className="fw-bold mb-2"),
                     html.Div([
-                        dbc.Button([
-                            html.I(className="fas fa-check-square me-2"),
-                            "Select All"
-                        ], id="select-all-join", size="sm", color="outline-primary", className="me-2 mb-2"),
-                        dbc.Button([
-                            html.I(className="fas fa-square me-2"),
-                            "Clear All"
-                        ], id="clear-all-join", size="sm", color="outline-secondary", className="me-2 mb-2"),
-                        dbc.Button([
-                            html.I(className="fas fa-sort-alpha-down me-2"),
-                            "Sort A-Z"
-                        ], id="sort-join-columns", size="sm", color="outline-info", className="mb-2")
-                    ], className="mb-3"),
+                        dcc.Dropdown(
+                            id="join-columns-dropdown",
+                            placeholder="Choose columns to join datasets...",
+                            multi=True,
+                            searchable=True,
+                            style={
+                                "minHeight": "50px",
+                                "fontSize": "14px"
+                            },
+                            className="mb-3"
+                        )
+                    ]),
                     
-                    html.Div(id="join-column-checkboxes", className="max-height-200 overflow-auto")
+                    # Info text
+                    html.Small("Select one or more columns that exist in both datasets to join records", 
+                              className="text-muted d-block")
                 ])
             ], className="mb-4"),
             

@@ -679,22 +679,17 @@ def populate_dataset_info(is_open, base_data, compare_data):
 
 # Callback for populating join column checkboxes
 @app.callback(
-    [Output("join-column-checkboxes", "children"),
-     Output("run-comparison-from-modal", "disabled"),
-     Output("join-sort-state", "data")],
-    [Input("column-selection-modal", "is_open"),
-     Input("join-column-search", "value"),
-     Input("select-all-join", "n_clicks"),
-     Input("clear-all-join", "n_clicks"),
-     Input("sort-join-columns", "n_clicks")],
+    [Output("join-columns-dropdown", "options"),
+     Output("join-columns-dropdown", "value"),
+     Output("run-comparison-from-modal", "disabled")],
+    [Input("column-selection-modal", "is_open")],
     [State("base-data-store", "data"),
      State("compare-data-store", "data"),
-     State("join-columns-checklist", "value"),
-     State("join-sort-state", "data")]
+     State("join-columns-dropdown", "value")]
 )
-def populate_join_columns(is_open, search_value, select_all, clear_all, sort_cols, base_data, compare_data, current_selection, sort_state):
+def populate_join_columns(is_open, base_data, compare_data, current_selection):
     if not is_open or not base_data or not compare_data:
-        return html.Div(), True, {"is_sorted": False}
+        return [], [], True
     
     try:
         base_df = pd.read_json(io.StringIO(base_data), orient='split')
@@ -703,61 +698,29 @@ def populate_join_columns(is_open, search_value, select_all, clear_all, sort_col
         # Get common columns
         base_cols = set(base_df.columns)
         compare_cols = set(compare_df.columns)
-        common_cols = list(base_cols.intersection(compare_cols))
-        
-        # Apply search filter
-        if search_value:
-            common_cols = [col for col in common_cols if search_value.lower() in col.lower()]
-        
-        # Manage sorting state
-        ctx = callback_context
-        is_sorted = sort_state.get("is_sorted", False) if sort_state else False
-        
-        if ctx.triggered:
-            trigger = ctx.triggered[0]['prop_id'].split('.')[0]
-            if trigger == "sort-join-columns":
-                is_sorted = not is_sorted  # Toggle sort state
-                print(f"DEBUG: Join columns sort toggled, now sorted: {is_sorted}")
-        
-        # Apply sorting based on current state
-        if is_sorted:
-            common_cols = sorted(common_cols)
+        common_cols = sorted(list(base_cols.intersection(compare_cols)))  # Always sort alphabetically
         
         # Preserve current selections when possible
         selected_values = current_selection if current_selection else []
         
-        # Handle button actions
-        if ctx.triggered:
-            trigger = ctx.triggered[0]['prop_id'].split('.')[0]
-            print(f"DEBUG: Join columns trigger: {trigger}")
-            
-            if trigger == "select-all-join":
-                selected_values = common_cols
-                print(f"DEBUG: Selected all join columns: {selected_values}")
-            elif trigger == "clear-all-join":
-                selected_values = []
-                print(f"DEBUG: Cleared all join columns")
-            elif trigger == "column-selection-modal":
-                # When modal opens, pre-select the first common column as default
-                selected_values = [common_cols[0]] if common_cols else []
-                print(f"DEBUG: Modal opened, pre-selected: {selected_values}")
+        # Handle modal opening - pre-select the first common column as default
+        ctx = callback_context
+        if ctx.triggered and "column-selection-modal" in ctx.triggered[0]['prop_id']:
+            selected_values = [common_cols[0]] if common_cols else []
+            print(f"DEBUG: Modal opened, pre-selected: {selected_values}")
         
         # Filter selected values to only include available columns
         selected_values = [val for val in selected_values if val in common_cols]
         
-        checkboxes = dbc.Checklist(
-            id="join-columns-checklist",
-            options=[{"label": col, "value": col} for col in common_cols],
-            value=selected_values,
-            className="checkbox-list"
-        )
+        # Create dropdown options
+        dropdown_options = [{"label": col, "value": col} for col in common_cols]
         
         is_disabled = len(selected_values) == 0
         print(f"DEBUG: Join columns selected: {selected_values}, button disabled: {is_disabled}")
-        return checkboxes, is_disabled, {"is_sorted": is_sorted}
+        return dropdown_options, selected_values, is_disabled
         
     except Exception as e:
-        return html.Div(f"Error: {str(e)}"), True, {"is_sorted": False}
+        return [], [], True
 
 # Callback for populating compare column checkboxes
 @app.callback(
@@ -770,7 +733,7 @@ def populate_join_columns(is_open, search_value, select_all, clear_all, sort_col
      Input("sort-compare-columns", "n_clicks")],
     [State("base-data-store", "data"),
      State("compare-data-store", "data"),
-     State("compare-columns-checklist", "value"),
+     State("compare-column-checkboxes", "children"),
      State("compare-sort-state", "data")]
 )
 def populate_compare_columns(is_open, search_value, select_all, clear_all, sort_cols, base_data, compare_data, current_checklist_value, sort_state):
@@ -804,8 +767,11 @@ def populate_compare_columns(is_open, search_value, select_all, clear_all, sort_
         if is_sorted:
             common_cols = sorted(common_cols)
         
-        # Preserve current selections when possible
-        selected_values = current_checklist_value if current_checklist_value else []
+        # Extract current selections from the children component if it exists
+        selected_values = []
+        if current_checklist_value and isinstance(current_checklist_value, dict):
+            if 'props' in current_checklist_value and 'value' in current_checklist_value['props']:
+                selected_values = current_checklist_value['props']['value'] or []
         
         # Handle button actions
         if ctx.triggered:
@@ -818,6 +784,12 @@ def populate_compare_columns(is_open, search_value, select_all, clear_all, sort_
             elif trigger == "clear-all-compare":
                 selected_values = []
                 print(f"DEBUG: Cleared all compare columns")
+            elif trigger == "sort-compare-columns":
+                # Keep existing selections when sorting
+                print(f"DEBUG: Sorting triggered, preserving selections: {selected_values}")
+            elif trigger == "compare-column-search":
+                # Keep existing selections when searching
+                print(f"DEBUG: Search triggered, preserving selections: {selected_values}")
         
         # Filter selected values to only include available columns
         selected_values = [val for val in selected_values if val in common_cols]
@@ -838,7 +810,7 @@ def populate_compare_columns(is_open, search_value, select_all, clear_all, sort_
 # Callback to enable/disable the run button based on join column selection  
 @app.callback(
     Output("run-comparison-from-modal", "disabled", allow_duplicate=True),
-    [Input("join-columns-checklist", "value")],
+    [Input("join-columns-dropdown", "value")],
     prevent_initial_call=True
 )
 def update_run_button_status(join_cols):
@@ -851,11 +823,11 @@ def update_run_button_status(join_cols):
     [Input("run-comparison-from-modal", "n_clicks")],
     [State("base-data-store", "data"),
      State("compare-data-store", "data"),
-     State("join-columns-checklist", "value"),
-     State("compare-columns-checklist", "value")],
+     State("join-columns-dropdown", "value"),
+     State("compare-column-checkboxes", "children")],
     prevent_initial_call=True
 )
-def run_comparison_from_modal(n_clicks, base_data, compare_data, join_cols, compare_cols):
+def run_comparison_from_modal(n_clicks, base_data, compare_data, join_cols, compare_col_children):
     if not n_clicks or not base_data or not compare_data:
         return dash.no_update, dash.no_update
     
@@ -877,6 +849,12 @@ def run_comparison_from_modal(n_clicks, base_data, compare_data, join_cols, comp
         
         if not join_cols:
             return dash.no_update, dbc.Alert("Please select at least one join column", color="warning")
+        
+        # Extract compare columns from children component
+        compare_cols = []
+        if compare_col_children and isinstance(compare_col_children, dict):
+            if 'props' in compare_col_children and 'value' in compare_col_children['props']:
+                compare_cols = compare_col_children['props']['value'] or []
         
         print(f"DEBUG: Running comparison with join_cols: {join_cols}, compare_cols: {compare_cols}")
         
@@ -1067,6 +1045,72 @@ def handle_session_cleanup(cleanup_old_clicks, force_cleanup_clicks, threshold_h
         ], color="danger", dismissable=True)
     
     return dash.no_update
+
+# Callbacks for expand table functionality
+@app.callback(
+    Output("comparison-results", "children", allow_duplicate=True),
+    [Input("expand-mismatch-btn", "n_clicks"),
+     Input("expand-base-btn", "n_clicks"), 
+     Input("expand-compare-btn", "n_clicks")],
+    [State("comparison-results", "children"),
+     State("base-data-store", "data"),
+     State("compare-data-store", "data"),
+     State("join-columns-dropdown", "value")],
+    prevent_initial_call=True
+)
+def handle_table_expansion(mismatch_clicks, base_clicks, compare_clicks, current_results, base_data, compare_data, join_cols):
+    """Handle expand/collapse functionality for tables in comparison results"""
+    if not any([mismatch_clicks, base_clicks, compare_clicks]) or not current_results:
+        return dash.no_update
+    
+    # Determine which button was clicked
+    ctx = callback_context
+    if not ctx.triggered:
+        return dash.no_update
+        
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    try:
+        # Re-run comparison with expanded flag
+        if not base_data or not compare_data or not join_cols:
+            return dash.no_update
+            
+        base_df = pd.read_json(io.StringIO(base_data), orient='split')
+        compare_df = pd.read_json(io.StringIO(compare_data), orient='split')
+        
+        # Get compare columns from current UI state (fallback to all if not available)
+        compare_cols = base_df.columns.tolist()  # Use all columns as fallback
+        
+        # Create comparison with datacompy
+        import datacompy
+        comparison = datacompy.Compare(
+            base_df,
+            compare_df,
+            join_columns=join_cols,
+            df1_name="Base",
+            df2_name="Compare"
+        )
+        
+        # Store results with expansion flags
+        results = {
+            'comparison_obj': comparison,
+            'base_shape': base_df.shape,
+            'compare_shape': compare_df.shape,
+            'intersect_rows': comparison.intersect_rows.shape[0] if hasattr(comparison, 'intersect_rows') else 0,
+            'base_only_rows': comparison.df1_unq_rows.shape[0] if hasattr(comparison, 'df1_unq_rows') else 0,
+            'compare_only_rows': comparison.df2_unq_rows.shape[0] if hasattr(comparison, 'df2_unq_rows') else 0,
+            'match_rate': float(comparison.matches()) if hasattr(comparison, 'matches') else 0.0,
+            # Expansion flags
+            'expand_mismatch': button_id == "expand-mismatch-btn",
+            'expand_base': button_id == "expand-base-btn", 
+            'expand_compare': button_id == "expand-compare-btn"
+        }
+        
+        return create_comparison_section(results)
+        
+    except Exception as e:
+        print(f"DEBUG: Table expansion error: {str(e)}")
+        return current_results
 
 # Add dynamic CSS container to layout - Fixed approach
 main_layout = create_main_layout()
