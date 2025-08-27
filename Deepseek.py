@@ -21,6 +21,78 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+class MultiSelectDropdown(ttk.Frame):
+    """A custom widget for multi-select dropdown functionality"""
+    def __init__(self, parent, options, title="Select options", max_height=200, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        self.options = options
+        self.selected_options = []
+        
+        # Create the button that will open the dropdown
+        self.button = ttk.Button(self, text=title, command=self.toggle_dropdown)
+        self.button.pack(fill=tk.X)
+        
+        # Create the dropdown frame (initially hidden)
+        self.dropdown_frame = ttk.Frame(self, relief=tk.SUNKEN, borderwidth=1)
+        
+        # Create a canvas for scrolling
+        self.canvas = tk.Canvas(self.dropdown_frame, height=max_height)
+        self.scrollbar = ttk.Scrollbar(self.dropdown_frame, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.scrollable_frame = ttk.Frame(self.canvas)
+        
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+        
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        # Create checkboxes for each option
+        self.option_vars = {}
+        for option in options:
+            var = tk.BooleanVar(value=False)
+            self.option_vars[option] = var
+            cb = ttk.Checkbutton(self.scrollable_frame, text=option, variable=var,
+                                command=self.update_button_text)
+            cb.pack(anchor=tk.W, padx=5, pady=2)
+        
+        # Layout the dropdown elements
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Track dropdown state
+        self.dropdown_visible = False
+        
+    def toggle_dropdown(self):
+        """Toggle the visibility of the dropdown"""
+        if self.dropdown_visible:
+            self.dropdown_frame.pack_forget()
+        else:
+            self.dropdown_frame.pack(fill=tk.X, pady=(5, 0))
+        self.dropdown_visible = not self.dropdown_visible
+    
+    def update_button_text(self):
+        """Update the button text to show selected options"""
+        self.selected_options = [opt for opt, var in self.option_vars.items() if var.get()]
+        if self.selected_options:
+            if len(self.selected_options) <= 3:
+                self.button.config(text=f"{', '.join(self.selected_options)}")
+            else:
+                self.button.config(text=f"{len(self.selected_options)} options selected")
+        else:
+            self.button.config(text="Select options")
+    
+    def get_selected(self):
+        """Get the selected options"""
+        return self.selected_options
+    
+    def set_selected(self, options):
+        """Set the selected options"""
+        for opt, var in self.option_vars.items():
+            var.set(opt in options)
+        self.update_button_text()
+
 class WelcomeScreen:
     def __init__(self, root):
         self.root = root
@@ -233,7 +305,7 @@ class WelcomeScreen:
             ttk.Label(benefit_frame, text=benefit, style='Feature.TLabel').pack(side=tk.LEFT, padx=5)
         
         # How It Works Section
-        how_it_works_frame = ttk.Frame(self.scrollable_frame)
+        how_it_works_frame = ttt.Frame(self.scrollable_frame)
         how_it_works_frame.pack(fill=tk.X, padx=20, pady=40)
         
         section_label = ttk.Label(how_it_works_frame, text="How It Works", style='Section.TLabel')
@@ -354,6 +426,8 @@ class DataInputWindow:
         self.selected_join_cols = []
         self.selected_compare_cols = []
         self.progress_window = None
+        self.config_window = None
+        self.current_config_tab = 0  # 0 for join columns, 1 for compare columns
         
         # Configure parent grid
         parent.grid_rowconfigure(0, weight=1)
@@ -676,44 +750,71 @@ class DataInputWindow:
             return
         
         # Create configuration window
-        config_window = tk.Toplevel(self.parent)
-        config_window.title("Comparison Configuration")
-        config_window.geometry("600x500")
-        config_window.grab_set()
+        self.config_window = tk.Toplevel(self.parent)
+        self.config_window.title("Comparison Configuration")
+        self.config_window.geometry("700x600")
+        self.config_window.grab_set()
         
         # Center the configuration window
-        self.welcome_screen.center_window(config_window)
+        self.welcome_screen.center_window(self.config_window)
         
         # Find common columns
         common_cols = list(set(self.df1.columns) & set(self.df2.columns))
         
         if not common_cols:
             messagebox.showerror("Error", "No common columns found between datasets")
-            config_window.destroy()
+            self.config_window.destroy()
             return
         
-        ttk.Label(config_window, text="Select Join Columns:", font=('Arial', 12, 'bold')).pack(pady=(10, 5))
+        # Create notebook for configuration tabs
+        self.config_notebook = ttk.Notebook(self.config_window)
+        self.config_notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Frame for join columns
-        join_frame = ttk.Frame(config_window)
-        join_frame.pack(fill=tk.X, padx=20, pady=5)
+        # Join columns tab
+        self.join_tab = ttk.Frame(self.config_notebook)
+        self.config_notebook.add(self.join_tab, text="Join Columns")
         
-        self.join_vars = {}
-        for col in common_cols:
-            var = tk.BooleanVar()
-            self.join_vars[col] = var
-            cb = ttk.Checkbutton(join_frame, text=col, variable=var)
-            cb.pack(anchor=tk.W)
+        # Compare columns tab
+        self.compare_tab = ttk.Frame(self.config_notebook)
+        self.config_notebook.add(self.compare_tab, text="Compare Columns")
         
-        ttk.Label(config_window, text="Select Columns to Compare:", font=('Arial', 12, 'bold')).pack(pady=(20, 5))
+        # Options tab
+        self.options_tab = ttk.Frame(self.config_notebook)
+        self.config_notebook.add(self.options_tab, text="Options")
         
-        # Frame for compare columns
-        compare_frame = ttk.Frame(config_window)
-        compare_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
+        # Setup tabs
+        self.setup_join_tab(common_cols)
+        self.setup_compare_tab()
+        self.setup_options_tab()
+        
+        # Add navigation buttons
+        self.setup_navigation_buttons()
+    
+    def setup_join_tab(self, common_cols):
+        """Setup the join columns selection tab with multi-select dropdown"""
+        ttk.Label(self.join_tab, text="Select Join Columns:", font=('Arial', 12, 'bold')).pack(pady=(10, 5), anchor=tk.W)
+        
+        instruction_text = "These columns will be used to match rows between the two datasets. Select one or more columns that uniquely identify rows."
+        ttk.Label(self.join_tab, text=instruction_text, wraplength=600, justify=tk.LEFT).pack(pady=(0, 15), anchor=tk.W)
+        
+        # Create multi-select dropdown for join columns
+        self.join_dropdown = MultiSelectDropdown(self.join_tab, common_cols, "Select join columns", max_height=200)
+        self.join_dropdown.pack(fill=tk.X, padx=20, pady=5)
+        
+        # Add note about join columns
+        note_text = "Note: For best results, select columns that form a unique key in both datasets."
+        ttk.Label(self.join_tab, text=note_text, font=('Arial', 9), foreground='#6c757d').pack(pady=(10, 0), anchor=tk.W)
+    
+    def setup_compare_tab(self):
+        """Setup the compare columns selection tab"""
+        ttk.Label(self.compare_tab, text="Select Columns to Compare:", font=('Arial', 12, 'bold')).pack(pady=(10, 5), anchor=tk.W)
+        
+        instruction_text = "These columns will be compared between the two datasets. Only rows that match on the join columns will be compared."
+        ttk.Label(self.compare_tab, text=instruction_text, wraplength=600, justify=tk.LEFT).pack(pady=(0, 15), anchor=tk.W)
         
         # Create a canvas with scrollbar for compare columns
-        compare_canvas = tk.Canvas(compare_frame, height=200)
-        compare_scrollbar = ttk.Scrollbar(compare_frame, orient=tk.VERTICAL, command=compare_canvas.yview)
+        compare_canvas = tk.Canvas(self.compare_tab, height=300)
+        compare_scrollbar = ttk.Scrollbar(self.compare_tab, orient=tk.VERTICAL, command=compare_canvas.yview)
         compare_scrollable_frame = ttk.Frame(compare_canvas)
         
         compare_scrollable_frame.bind(
@@ -724,29 +825,33 @@ class DataInputWindow:
         compare_canvas.create_window((0, 0), window=compare_scrollable_frame, anchor="nw")
         compare_canvas.configure(yscrollcommand=compare_scrollbar.set)
         
-        compare_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        compare_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        compare_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(20, 5))
+        compare_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 20))
         
+        # Create checkboxes for all columns
         self.compare_vars = {}
         all_cols = list(set(self.df1.columns) | set(self.df2.columns))
+        common_cols = list(set(self.df1.columns) & set(self.df2.columns))
+        
         for col in all_cols:
             var = tk.BooleanVar(value=(col in common_cols))  # Pre-select common columns
             self.compare_vars[col] = var
             cb = ttk.Checkbutton(compare_scrollable_frame, text=col, variable=var)
-            cb.pack(anchor=tk.W)
+            cb.pack(anchor=tk.W, padx=5, pady=2)
+    
+    def setup_options_tab(self):
+        """Setup the options tab"""
+        ttk.Label(self.options_tab, text="Comparison Options:", font=('Arial', 12, 'bold')).pack(pady=(10, 5), anchor=tk.W)
         
-        # Comparison options
-        options_frame = ttk.Frame(config_window)
-        options_frame.pack(fill=tk.X, padx=20, pady=10)
-        
-        ttk.Label(options_frame, text="Comparison Options:", font=('Arial', 10, 'bold')).pack(anchor=tk.W)
-        
+        # Case sensitive option
         self.case_sensitive_var = tk.BooleanVar(value=self.welcome_screen.config.get("case_sensitive", False))
-        ttk.Checkbutton(options_frame, text="Case Sensitive", variable=self.case_sensitive_var).pack(anchor=tk.W)
+        case_frame = ttk.Frame(self.options_tab)
+        case_frame.pack(fill=tk.X, padx=20, pady=10)
+        ttk.Checkbutton(case_frame, text="Case Sensitive", variable=self.case_sensitive_var).pack(anchor=tk.W)
         
         # Tolerance for numeric comparisons
-        tol_frame = ttk.Frame(options_frame)
-        tol_frame.pack(fill=tk.X, pady=5)
+        tol_frame = ttk.Frame(self.options_tab)
+        tol_frame.pack(fill=tk.X, padx=20, pady=10)
         
         ttk.Label(tol_frame, text="Numeric Tolerance:").pack(side=tk.LEFT)
         self.tolerance_var = tk.DoubleVar(value=self.welcome_screen.config.get("tolerance", 0.0))
@@ -754,34 +859,85 @@ class DataInputWindow:
                                  textvariable=self.tolerance_var, width=8)
         tol_spinbox.pack(side=tk.LEFT, padx=5)
         
-        # Buttons
-        button_frame = ttk.Frame(config_window)
-        button_frame.pack(pady=10)
+        # Ignore whitespace option
+        self.ignore_whitespace_var = tk.BooleanVar(value=True)
+        whitespace_frame = ttk.Frame(self.options_tab)
+        whitespace_frame.pack(fill=tk.X, padx=20, pady=10)
+        ttk.Checkbutton(whitespace_frame, text="Ignore Whitespace Differences", variable=self.ignore_whitespace_var).pack(anchor=tk.W)
         
-        ttk.Button(button_frame, text="Compare", command=lambda: self.run_csv_comparison(config_window)).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Cancel", command=config_window.destroy).pack(side=tk.LEFT, padx=5)
+        # Show all matches option
+        self.show_all_matches_var = tk.BooleanVar(value=False)
+        matches_frame = ttk.Frame(self.options_tab)
+        matches_frame.pack(fill=tk.X, padx=20, pady=10)
+        ttk.Checkbutton(matches_frame, text="Show All Matches (may be slow for large datasets)", 
+                       variable=self.show_all_matches_var).pack(anchor=tk.W)
     
-    def run_csv_comparison(self, config_window):
-        # Get selected join columns
-        join_cols = [col for col, var in self.join_vars.items() if var.get()]
+    def setup_navigation_buttons(self):
+        """Setup navigation buttons for the configuration window"""
+        button_frame = ttk.Frame(self.config_window)
+        button_frame.pack(fill=tk.X, padx=20, pady=10)
         
-        if not join_cols:
-            messagebox.showerror("Error", "Please select at least one join column")
-            return
+        # Back button
+        ttk.Button(button_frame, text="Back", command=self.prev_config_tab).pack(side=tk.LEFT, padx=5)
         
-        # Get selected compare columns
-        compare_cols = [col for col, var in self.compare_vars.items() if var.get()]
+        # Next button
+        ttk.Button(button_frame, text="Next", command=self.next_config_tab).pack(side=tk.LEFT, padx=5)
         
-        if not compare_cols:
-            messagebox.showerror("Error", "Please select at least one column to compare")
-            return
+        # Compare button (initially hidden)
+        self.compare_btn = ttk.Button(button_frame, text="Compare", command=self.run_csv_comparison, style='Primary.TButton')
+        self.compare_btn.pack(side=tk.RIGHT, padx=5)
         
+        # Cancel button
+        ttk.Button(button_frame, text="Cancel", command=self.config_window.destroy).pack(side=tk.RIGHT, padx=5)
+        
+        # Initially hide the compare button
+        self.compare_btn.pack_forget()
+    
+    def next_config_tab(self):
+        """Navigate to the next configuration tab"""
+        current_tab = self.config_notebook.index(self.config_notebook.select())
+        
+        if current_tab == 0:  # Join columns tab
+            # Validate that at least one join column is selected
+            join_cols = self.join_dropdown.get_selected()
+            if not join_cols:
+                messagebox.showerror("Error", "Please select at least one join column")
+                return
+            
+            self.selected_join_cols = join_cols
+            self.config_notebook.select(1)  # Go to compare columns tab
+            
+        elif current_tab == 1:  # Compare columns tab
+            # Validate that at least one compare column is selected
+            compare_cols = [col for col, var in self.compare_vars.items() if var.get()]
+            if not compare_cols:
+                messagebox.showerror("Error", "Please select at least one column to compare")
+                return
+            
+            self.selected_compare_cols = compare_cols
+            self.config_notebook.select(2)  # Go to options tab
+            
+            # Show the compare button and hide the next button
+            self.compare_btn.pack(side=tk.RIGHT, padx=5)
+    
+    def prev_config_tab(self):
+        """Navigate to the previous configuration tab"""
+        current_tab = self.config_notebook.index(self.config_notebook.select())
+        
+        if current_tab == 1:  # Compare columns tab
+            self.config_notebook.select(0)  # Go to join columns tab
+        elif current_tab == 2:  # Options tab
+            self.config_notebook.select(1)  # Go to compare columns tab
+            # Hide the compare button
+            self.compare_btn.pack_forget()
+    
+    def run_csv_comparison(self):
         # Update config
         self.welcome_screen.config["tolerance"] = self.tolerance_var.get()
         self.welcome_screen.config["case_sensitive"] = self.case_sensitive_var.get()
         self.welcome_screen.save_config()
         
-        config_window.destroy()
+        self.config_window.destroy()
         
         # Show progress
         self.show_progress("Comparing datasets...")
@@ -789,7 +945,7 @@ class DataInputWindow:
         # Run comparison in a separate thread
         threading.Thread(
             target=self.run_comparison_in_thread, 
-            args=(join_cols, compare_cols),
+            args=(self.selected_join_cols, self.selected_compare_cols),
             daemon=True
         ).start()
     
@@ -1011,7 +1167,7 @@ Compare Columns: {', '.join(self.compare_cols)}
                 if diff_df is not None and not diff_df.empty:
                     # Create a treeview to show differences
                     columns = list(diff_df.columns)
-                    tree = ttk.Treeview(self.diff_frame, columns=columns, show='headings', height=15)
+                    tree = ttt.Treeview(self.diff_frame, columns=columns, show='headings', height=15)
                     
                     # Set headings and column widths
                     for col in columns:
