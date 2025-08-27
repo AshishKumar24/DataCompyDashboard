@@ -2,6 +2,9 @@ import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox
 import pandas as pd
 import datacompy
+import sqlite3
+from io import StringIO
+import traceback
 
 class WelcomeScreen:
     def __init__(self, root):
@@ -10,6 +13,9 @@ class WelcomeScreen:
         self.root.geometry("1000x800")
         self.root.minsize(800, 600)
         self.root.configure(bg="#f8f9fa")
+        
+        # Center the window on screen
+        self.center_window()
         
         # Configure root grid for responsiveness
         self.root.grid_rowconfigure(0, weight=1)
@@ -37,6 +43,15 @@ class WelcomeScreen:
         self.style.map('Primary.TButton', background=[('active', '#0056b3')])
         
         self.setup_ui()
+        
+    def center_window(self):
+        """Center the window on the screen"""
+        self.root.update_idletasks()
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.root.winfo_screenheight() // 2) - (height // 2)
+        self.root.geometry('{}x{}+{}+{}'.format(width, height, x, y))
         
     def setup_ui(self):
         # Main container with scrollbar
@@ -260,8 +275,6 @@ class WelcomeScreen:
     
     def open_data_input(self):
         """Open the data input window when Get Started is clicked"""
-        print("Get Started button clicked! Opening data input window...")
-        
         # Create a new window for data input
         data_window = tk.Toplevel(self.root)
         data_window.title("Data Input - Data Comparison Tool")
@@ -270,6 +283,7 @@ class WelcomeScreen:
         data_window.minsize(800, 600)
         
         # Center the new window
+        self.center_window(data_window)
         data_window.transient(self.root)
         data_window.grab_set()
         
@@ -278,6 +292,16 @@ class WelcomeScreen:
         
         # Make sure to handle window close properly
         data_window.protocol("WM_DELETE_WINDOW", lambda: self.on_data_window_close(data_window))
+
+    def center_window(self, window=None):
+        """Center a window on the screen"""
+        window = window or self.root
+        window.update_idletasks()
+        width = window.winfo_width()
+        height = window.winfo_height()
+        x = (window.winfo_screenwidth() // 2) - (width // 2)
+        y = (window.winfo_screenheight() // 2) - (height // 2)
+        window.geometry('{}x{}+{}+{}'.format(width, height, x, y))
 
     def on_data_window_close(self, data_window):
         """Handle closing of the data input window"""
@@ -290,6 +314,8 @@ class DataInputWindow:
         self.welcome_screen = welcome_screen
         self.df1 = None
         self.df2 = None
+        self.selected_join_cols = []
+        self.selected_compare_cols = []
         
         # Configure parent grid
         parent.grid_rowconfigure(0, weight=1)
@@ -350,7 +376,7 @@ class DataInputWindow:
         compare_frame = ttk.Frame(self.csv_frame)
         compare_frame.grid(row=2, column=0, columnspan=2, pady=20)
         
-        ttk.Button(compare_frame, text="Compare Datasets", command=self.compare_csv, style='Primary.TButton').pack()
+        ttk.Button(compare_frame, text="Compare Datasets", command=self.prepare_csv_comparison, style='Primary.TButton').pack()
         
         # Preview area
         ttk.Label(self.csv_frame, text="Data Preview:", font=('Arial', 12, 'bold')).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(20, 10))
@@ -403,6 +429,9 @@ class DataInputWindow:
         self.conn_string.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
         self.conn_string.insert(0, "sqlite:///sample.db")
         
+        # Test connection button
+        ttk.Button(conn_frame, text="Test Connection", command=self.test_connection).pack(side=tk.RIGHT)
+        
         # Compare button
         compare_frame = ttk.Frame(self.sql_frame)
         compare_frame.grid(row=3, column=0, columnspan=2, pady=20)
@@ -412,6 +441,23 @@ class DataInputWindow:
         # Configure rows for expansion
         self.sql_frame.grid_rowconfigure(1, weight=1)
     
+    def test_connection(self):
+        """Test the database connection"""
+        conn_str = self.conn_string.get()
+        try:
+            if conn_str.startswith("sqlite:///"):
+                # SQLite connection
+                db_path = conn_str[10:]  # Remove "sqlite:///" prefix
+                conn = sqlite3.connect(db_path)
+                conn.close()
+                messagebox.showinfo("Success", "SQLite connection successful!")
+            else:
+                # For other databases, you would need appropriate drivers
+                messagebox.showwarning("Not Implemented", 
+                                     "Only SQLite connections are fully implemented in this version.")
+        except Exception as e:
+            messagebox.showerror("Connection Failed", f"Failed to connect to database: {str(e)}")
+    
     def go_back_to_welcome(self):
         """Return to the welcome screen"""
         self.parent.destroy()
@@ -420,30 +466,44 @@ class DataInputWindow:
     def load_file1(self):
         filename = filedialog.askopenfilename(
             title="Select First Dataset", 
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            filetypes=[("CSV files", "*.csv"), ("Excel files", "*.xlsx"), ("All files", "*.*")]
         )
         if filename:
             self.file1_entry.delete(0, tk.END)
             self.file1_entry.insert(0, filename)
             try:
-                self.df1 = pd.read_csv(filename)
+                if filename.endswith('.csv'):
+                    self.df1 = pd.read_csv(filename)
+                elif filename.endswith('.xlsx'):
+                    self.df1 = pd.read_excel(filename)
+                else:
+                    messagebox.showerror("Error", "Unsupported file format")
+                    return
+                    
                 self.show_preview(self.df1, self.preview1_frame, "Dataset 1")
-                messagebox.showinfo("Success", f"Loaded dataset 1 with {len(self.df1)} rows")
+                messagebox.showinfo("Success", f"Loaded dataset 1 with {len(self.df1)} rows and {len(self.df1.columns)} columns")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load file: {str(e)}")
     
     def load_file2(self):
         filename = filedialog.askopenfilename(
             title="Select Second Dataset", 
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            filetypes=[("CSV files", "*.csv"), ("Excel files", "*.xlsx"), ("All files", "*.*")]
         )
         if filename:
             self.file2_entry.delete(0, tk.END)
             self.file2_entry.insert(0, filename)
             try:
-                self.df2 = pd.read_csv(filename)
+                if filename.endswith('.csv'):
+                    self.df2 = pd.read_csv(filename)
+                elif filename.endswith('.xlsx'):
+                    self.df2 = pd.read_excel(filename)
+                else:
+                    messagebox.showerror("Error", "Unsupported file format")
+                    return
+                    
                 self.show_preview(self.df2, self.preview2_frame, "Dataset 2")
-                messagebox.showinfo("Success", f"Loaded dataset 2 with {len(self.df2)} rows")
+                messagebox.showinfo("Success", f"Loaded dataset 2 with {len(self.df2)} rows and {len(self.df2.columns)} columns")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load file: {str(e)}")
     
@@ -481,49 +541,186 @@ class DataInputWindow:
         info_text = f"Showing first 50 rows of {len(df)} total rows, {len(df.columns)} columns"
         ttk.Label(frame, text=info_text, font=('Arial', 9)).pack(side=tk.BOTTOM, fill=tk.X)
     
-    def compare_csv(self):
+    def prepare_csv_comparison(self):
         if self.df1 is None or self.df2 is None:
             messagebox.showerror("Error", "Please load both datasets first")
             return
+        
+        # Create configuration window
+        config_window = tk.Toplevel(self.parent)
+        config_window.title("Comparison Configuration")
+        config_window.geometry("600x500")
+        config_window.grab_set()
+        
+        # Center the configuration window
+        self.welcome_screen.center_window(config_window)
+        
+        # Find common columns
+        common_cols = list(set(self.df1.columns) & set(self.df2.columns))
+        
+        if not common_cols:
+            messagebox.showerror("Error", "No common columns found between datasets")
+            config_window.destroy()
+            return
+        
+        ttk.Label(config_window, text="Select Join Columns:", font=('Arial', 12, 'bold')).pack(pady=(10, 5))
+        
+        # Frame for join columns
+        join_frame = ttk.Frame(config_window)
+        join_frame.pack(fill=tk.X, padx=20, pady=5)
+        
+        self.join_vars = {}
+        for col in common_cols:
+            var = tk.BooleanVar()
+            self.join_vars[col] = var
+            cb = ttk.Checkbutton(join_frame, text=col, variable=var)
+            cb.pack(anchor=tk.W)
+        
+        ttk.Label(config_window, text="Select Columns to Compare:", font=('Arial', 12, 'bold')).pack(pady=(20, 5))
+        
+        # Frame for compare columns
+        compare_frame = ttk.Frame(config_window)
+        compare_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
+        
+        # Create a canvas with scrollbar for compare columns
+        compare_canvas = tk.Canvas(compare_frame, height=200)
+        compare_scrollbar = ttk.Scrollbar(compare_frame, orient=tk.VERTICAL, command=compare_canvas.yview)
+        compare_scrollable_frame = ttk.Frame(compare_canvas)
+        
+        compare_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: compare_canvas.configure(scrollregion=compare_canvas.bbox("all"))
+        )
+        
+        compare_canvas.create_window((0, 0), window=compare_scrollable_frame, anchor="nw")
+        compare_canvas.configure(yscrollcommand=compare_scrollbar.set)
+        
+        compare_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        compare_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.compare_vars = {}
+        all_cols = list(set(self.df1.columns) | set(self.df2.columns))
+        for col in all_cols:
+            var = tk.BooleanVar(value=(col in common_cols))  # Pre-select common columns
+            self.compare_vars[col] = var
+            cb = ttk.Checkbutton(compare_scrollable_frame, text=col, variable=var)
+            cb.pack(anchor=tk.W)
+        
+        # Comparison options
+        options_frame = ttk.Frame(config_window)
+        options_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        ttk.Label(options_frame, text="Comparison Options:", font=('Arial', 10, 'bold')).pack(anchor=tk.W)
+        
+        self.case_sensitive_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(options_frame, text="Case Sensitive", variable=self.case_sensitive_var).pack(anchor=tk.W)
+        
+        # Tolerance for numeric comparisons
+        tol_frame = ttk.Frame(options_frame)
+        tol_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(tol_frame, text="Numeric Tolerance:").pack(side=tk.LEFT)
+        self.tolerance_var = tk.DoubleVar(value=0.0)
+        tol_spinbox = ttk.Spinbox(tol_frame, from_=0.0, to=1.0, increment=0.01, 
+                                 textvariable=self.tolerance_var, width=8)
+        tol_spinbox.pack(side=tk.LEFT, padx=5)
+        
+        # Buttons
+        button_frame = ttk.Frame(config_window)
+        button_frame.pack(pady=10)
+        
+        ttk.Button(button_frame, text="Compare", command=lambda: self.run_csv_comparison(config_window)).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=config_window.destroy).pack(side=tk.LEFT, padx=5)
+    
+    def run_csv_comparison(self, config_window):
+        # Get selected join columns
+        join_cols = [col for col, var in self.join_vars.items() if var.get()]
+        
+        if not join_cols:
+            messagebox.showerror("Error", "Please select at least one join column")
+            return
+        
+        # Get selected compare columns
+        compare_cols = [col for col, var in self.compare_vars.items() if var.get()]
+        
+        if not compare_cols:
+            messagebox.showerror("Error", "Please select at least one column to compare")
+            return
+        
+        config_window.destroy()
         
         # Create comparison window
         comparison_window = tk.Toplevel(self.parent)
         comparison_window.title("Data Comparison Results")
         comparison_window.geometry("1200x800")
+        self.welcome_screen.center_window(comparison_window)
         
         # Perform comparison
         try:
             compare_result = datacompy.Compare(
                 self.df1, 
                 self.df2, 
-                join_columns=self.find_common_columns(),
+                join_columns=join_cols,
+                on_index=False,
+                abs_tol=self.tolerance_var.get(),
+                rel_tol=0.0,  # Using absolute tolerance only for simplicity
                 df1_name='Dataset1', 
-                df2_name='Dataset2'
+                df2_name='Dataset2',
+                cast_column_names_lower=not self.case_sensitive_var.get()
             )
             
             # Display results
-            ComparisonResults(comparison_window, compare_result, self.df1, self.df2)
+            ComparisonResults(comparison_window, compare_result, self.df1, self.df2, join_cols, compare_cols)
             
         except Exception as e:
             messagebox.showerror("Error", f"Comparison failed: {str(e)}")
+            comparison_window.destroy()
     
     def compare_sql(self):
-        # Placeholder for SQL comparison
-        messagebox.showinfo("Info", "SQL comparison functionality would be implemented here with actual database connection")
-    
-    def find_common_columns(self):
-        """Find common columns between the two datasets"""
-        if self.df1 is not None and self.df2 is not None:
-            common_cols = list(set(self.df1.columns) & set(self.df2.columns))
-            return common_cols[0] if common_cols else None
-        return None
+        # Get queries
+        query1 = self.query1_text.get("1.0", tk.END).strip()
+        query2 = self.query2_text.get("1.0", tk.END).strip()
+        
+        if not query1 or not query2:
+            messagebox.showerror("Error", "Please enter both SQL queries")
+            return
+        
+        conn_str = self.conn_string.get()
+        
+        try:
+            if conn_str.startswith("sqlite:///"):
+                # SQLite connection
+                db_path = conn_str[10:]  # Remove "sqlite:///" prefix
+                conn = sqlite3.connect(db_path)
+                
+                # Execute queries
+                self.df1 = pd.read_sql_query(query1, conn)
+                self.df2 = pd.read_sql_query(query2, conn)
+                
+                conn.close()
+                
+                # Show previews
+                self.show_preview(self.df1, self.preview1_frame, "Dataset 1")
+                self.show_preview(self.df2, self.preview2_frame, "Dataset 2")
+                
+                # Prepare for comparison (same as CSV)
+                self.prepare_csv_comparison()
+                
+            else:
+                messagebox.showwarning("Not Implemented", 
+                                     "Only SQLite connections are fully implemented in this version.")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"SQL execution failed: {str(e)}")
 
 class ComparisonResults:
-    def __init__(self, parent, compare_result, df1, df2):
+    def __init__(self, parent, compare_result, df1, df2, join_cols, compare_cols):
         self.parent = parent
         self.compare_result = compare_result
         self.df1 = df1
         self.df2 = df2
+        self.join_cols = join_cols
+        self.compare_cols = compare_cols
         
         # Create notebook for tabs
         self.notebook = ttk.Notebook(parent)
@@ -541,10 +738,19 @@ class ComparisonResults:
         self.diff_frame = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(self.diff_frame, text="Differences")
         
+        # Sample matches tab
+        self.matches_frame = ttk.Frame(self.notebook, padding=10)
+        self.notebook.add(self.matches_frame, text="Sample Matches")
+        
         # Setup tabs
         self.setup_summary_tab()
         self.setup_columns_tab()
         self.setup_differences_tab()
+        self.setup_matches_tab()
+        
+        # Add export button
+        export_button = ttk.Button(parent, text="Export Results", command=self.export_results)
+        export_button.pack(pady=10)
     
     def setup_summary_tab(self):
         # Create summary text
@@ -554,6 +760,8 @@ DataCompy Comparison Summary
 
 Dataset 1: {len(self.df1)} rows, {len(self.df1.columns)} columns
 Dataset 2: {len(self.df2)} rows, {len(self.df2.columns)} columns
+Join Columns: {', '.join(self.join_cols)}
+Compare Columns: {', '.join(self.compare_cols)}
 
 {self.compare_result.report()}
 """
@@ -634,12 +842,91 @@ Dataset 2: {len(self.df2)} rows, {len(self.df2.columns)} columns
                     # Layout
                     tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
                     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+                    
+                    # Add info label
+                    info_text = f"Showing {len(diff_df)} sample mismatches out of {self.compare_result.intersect_rows - self.compare_result.count_matching_rows()} total mismatches"
+                    ttk.Label(self.diff_frame, text=info_text, font=('Arial', 9)).pack(side=tk.BOTTOM, fill=tk.X)
                 else:
                     ttk.Label(self.diff_frame, text="No differences found").pack(pady=20)
             else:
                 ttk.Label(self.diff_frame, text="No differences found or sample not available").pack(pady=20)
         except Exception as e:
             ttk.Label(self.diff_frame, text=f"Error displaying differences: {str(e)}").pack(pady=20)
+    
+    def setup_matches_tab(self):
+        # Get sample matches
+        try:
+            if hasattr(self.compare_result, 'sample_match') and self.compare_result.sample_match(0.1) is not None:
+                match_df = self.compare_result.sample_match(0.1)
+                
+                if match_df is not None and not match_df.empty:
+                    # Create a treeview to show matches
+                    columns = list(match_df.columns)
+                    tree = ttk.Treeview(self.matches_frame, columns=columns, show='headings', height=15)
+                    
+                    # Set headings and column widths
+                    for col in columns:
+                        tree.heading(col, text=col)
+                        tree.column(col, width=100, anchor=tk.W)
+                    
+                    # Add data
+                    for _, row in match_df.iterrows():
+                        tree.insert('', 'end', values=list(row))
+                    
+                    # Add scrollbar
+                    scrollbar = ttk.Scrollbar(self.matches_frame, orient=tk.VERTICAL, command=tree.yview)
+                    tree.configure(yscrollcommand=scrollbar.set)
+                    
+                    # Layout
+                    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+                    
+                    # Add info label
+                    info_text = f"Showing {len(match_df)} sample matches out of {self.compare_result.count_matching_rows()} total matches"
+                    ttk.Label(self.matches_frame, text=info_text, font=('Arial', 9)).pack(side=tk.BOTTOM, fill=tk.X)
+                else:
+                    ttk.Label(self.matches_frame, text="No matches found").pack(pady=20)
+            else:
+                ttk.Label(self.matches_frame, text="No matches found or sample not available").pack(pady=20)
+        except Exception as e:
+            ttk.Label(self.matches_frame, text=f"Error displaying matches: {str(e)}").pack(pady=20)
+    
+    def export_results(self):
+        """Export comparison results to a file"""
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            if file_path.endswith('.csv'):
+                # Export differences to CSV
+                diff_df = self.compare_result.sample_mismatch(1.0)  # Get all mismatches
+                if diff_df is not None and not diff_df.empty:
+                    diff_df.to_csv(file_path, index=False)
+                    messagebox.showinfo("Success", f"Exported {len(diff_df)} differences to {file_path}")
+                else:
+                    messagebox.showinfo("Info", "No differences to export")
+            else:
+                # Export full report to text file
+                with open(file_path, 'w') as f:
+                    f.write("Data Comparison Tool - Results Report\n")
+                    f.write("=" * 50 + "\n\n")
+                    
+                    f.write(f"Dataset 1: {len(self.df1)} rows, {len(self.df1.columns)} columns\n")
+                    f.write(f"Dataset 2: {len(self.df2)} rows, {len(self.df2.columns)} columns\n")
+                    f.write(f"Join Columns: {', '.join(self.join_cols)}\n")
+                    f.write(f"Compare Columns: {', '.join(self.compare_cols)}\n\n")
+                    
+                    f.write(self.compare_result.report())
+                
+                messagebox.showinfo("Success", f"Exported full report to {file_path}")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to export results: {str(e)}")
 
 if __name__ == "__main__":
     root = tk.Tk()
