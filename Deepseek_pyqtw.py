@@ -5,13 +5,165 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QHBoxLayout, QTabWidget, QPushButton, QLabel, 
                             QTextEdit, QFileDialog, QMessageBox, QTableWidget,
                             QTableWidgetItem, QSplitter, QProgressBar, QComboBox,
-                            QGroupBox, QFormLayout, QLineEdit, QCheckBox)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QFont
+                            QGroupBox, QFormLayout, QLineEdit, QCheckBox, 
+                            QFrame, QSizePolicy, QScrollArea, QGridLayout)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
+from PyQt6.QtGui import QFont, QPalette, QColor, QIcon
 import sqlite3
 from sqlalchemy import create_engine, text
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import seaborn as sns
+
+# Set modern matplotlib style
+plt.style.use('seaborn-v0_8')
+
+class StyledButton(QPushButton):
+    def __init__(self, text, primary=False):
+        super().__init__(text)
+        self.setMinimumHeight(35)
+        if primary:
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: #007acc;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    padding: 8px 16px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #005a9e;
+                }
+                QPushButton:disabled {
+                    background-color: #cccccc;
+                    color: #666666;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: #f0f0f0;
+                    color: #333333;
+                    border: 1px solid #cccccc;
+                    border-radius: 5px;
+                    padding: 8px 16px;
+                }
+                QPushButton:hover {
+                    background-color: #e0e0e0;
+                }
+                QPushButton:disabled {
+                    background-color: #f8f8f8;
+                    color: #aaaaaa;
+                }
+            """)
+
+class ModernGroupBox(QGroupBox):
+    def __init__(self, title):
+        super().__init__(title)
+        self.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #cccccc;
+                border-radius: 8px;
+                margin-top: 1ex;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                color: #007acc;
+            }
+        """)
+
+class ModernProgressBar(QProgressBar):
+    def __init__(self):
+        super().__init__()
+        self.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #cccccc;
+                border-radius: 5px;
+                text-align: center;
+                background-color: #f8f8f8;
+            }
+            QProgressBar::chunk {
+                background-color: #007acc;
+                border-radius: 5px;
+            }
+        """)
+
+class ModernTableWidget(QTableWidget):
+    def __init__(self):
+        super().__init__()
+        self.setStyleSheet("""
+            QTableWidget {
+                gridline-color: #e0e0e0;
+                background-color: white;
+                alternate-background-color: #f8f8f8;
+            }
+            QTableWidget::item:selected {
+                background-color: #007acc;
+                color: white;
+            }
+            QHeaderView::section {
+                background-color: #f0f0f0;
+                padding: 4px;
+                border: 1px solid #e0e0e0;
+                font-weight: bold;
+            }
+        """)
+        self.setAlternatingRowColors(True)
+        self.setShowGrid(False)
+
+class ModernTextEdit(QTextEdit):
+    def __init__(self):
+        super().__init__()
+        self.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #cccccc;
+                border-radius: 5px;
+                padding: 4px;
+                background-color: white;
+            }
+        """)
+
+class ModernLineEdit(QLineEdit):
+    def __init__(self):
+        super().__init__()
+        self.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid #cccccc;
+                border-radius: 5px;
+                padding: 6px;
+                background-color: white;
+            }
+            QLineEdit:focus {
+                border: 2px solid #007acc;
+            }
+        """)
+
+class ModernComboBox(QComboBox):
+    def __init__(self):
+        super().__init__()
+        self.setStyleSheet("""
+            QComboBox {
+                border: 1px solid #cccccc;
+                border-radius: 5px;
+                padding: 6px;
+                background-color: white;
+                min-height: 30px;
+            }
+            QComboBox:focus {
+                border: 2px solid #007acc;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left: 1px solid #cccccc;
+            }
+        """)
 
 class DataLoaderThread(QThread):
     progress = pyqtSignal(int)
@@ -100,10 +252,12 @@ class ComparisonWorker(QThread):
         common_cols = set(self.df1.columns).intersection(set(self.df2.columns))
         stats = {}
         for col in common_cols:
-            if self.df1[col].dtype in ['int64', 'float64']:
+            if pd.api.types.is_numeric_dtype(self.df1[col]) and pd.api.types.is_numeric_dtype(self.df2[col]):
                 stats[col] = {
                     'mean_diff': abs(self.df1[col].mean() - self.df2[col].mean()),
-                    'std_diff': abs(self.df1[col].std() - self.df2[col].std())
+                    'std_diff': abs(self.df1[col].std() - self.df2[col].std()),
+                    'min_diff': abs(self.df1[col].min() - self.df2[col].min()),
+                    'max_diff': abs(self.df1[col].max() - self.df2[col].max())
                 }
         return stats
 
@@ -135,35 +289,62 @@ class DataSourceWidget(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout()
+        layout.setSpacing(10)
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        # Title
+        title_label = QLabel(f"<h3>{self.title}</h3>")
+        title_label.setStyleSheet("color: #007acc; font-weight: bold;")
+        layout.addWidget(title_label)
 
         # Source type selection
-        self.source_type = QComboBox()
+        type_layout = QHBoxLayout()
+        type_layout.addWidget(QLabel("Source Type:"))
+        self.source_type = ModernComboBox()
         self.source_type.addItems(['CSV', 'SQL'])
         self.source_type.currentTextChanged.connect(self.on_source_type_changed)
+        type_layout.addWidget(self.source_type)
+        type_layout.addStretch()
+        layout.addLayout(type_layout)
 
         # CSV widgets
-        self.csv_group = QGroupBox("CSV Options")
+        self.csv_group = ModernGroupBox("CSV Options")
         csv_layout = QVBoxLayout()
-        self.csv_path = QLineEdit()
-        self.csv_browse_btn = QPushButton("Browse")
+        csv_layout.setSpacing(5)
+        
+        path_layout = QHBoxLayout()
+        self.csv_path = ModernLineEdit()
+        self.csv_path.setPlaceholderText("Select CSV file...")
+        self.csv_browse_btn = StyledButton("Browse")
         self.csv_browse_btn.clicked.connect(self.browse_csv)
-        csv_layout.addWidget(QLabel("CSV File:"))
-        csv_layout.addWidget(self.csv_path)
-        csv_layout.addWidget(self.csv_browse_btn)
+        path_layout.addWidget(self.csv_path)
+        path_layout.addWidget(self.csv_browse_btn)
+        csv_layout.addLayout(path_layout)
+        
         self.csv_group.setLayout(csv_layout)
 
         # SQL widgets
-        self.sql_group = QGroupBox("SQL Options")
+        self.sql_group = ModernGroupBox("SQL Options")
         sql_layout = QFormLayout()
-        self.db_type = QComboBox()
+        sql_layout.setSpacing(8)
+        
+        self.db_type = ModernComboBox()
         self.db_type.addItems(['sqlite', 'mysql', 'postgresql'])
-        self.host = QLineEdit()
-        self.port = QLineEdit()
-        self.database = QLineEdit()
-        self.username = QLineEdit()
-        self.password = QLineEdit()
+        self.host = ModernLineEdit()
+        self.host.setPlaceholderText("localhost")
+        self.port = ModernLineEdit()
+        self.port.setPlaceholderText("3306")
+        self.database = ModernLineEdit()
+        self.database.setPlaceholderText("database_name")
+        self.username = ModernLineEdit()
+        self.username.setPlaceholderText("username")
+        self.password = ModernLineEdit()
+        self.password.setPlaceholderText("password")
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
-        self.query = QTextEdit()
+        
+        self.query = ModernTextEdit()
+        self.query.setPlaceholderText("Enter your SQL query here...")
+        self.query.setMaximumHeight(100)
         
         sql_layout.addRow("DB Type:", self.db_type)
         sql_layout.addRow("Host:", self.host)
@@ -176,16 +357,13 @@ class DataSourceWidget(QWidget):
         self.sql_group.setVisible(False)
 
         # Load button
-        self.load_btn = QPushButton(f"Load {self.title}")
+        self.load_btn = StyledButton(f"Load {self.title}", primary=True)
         self.load_btn.clicked.connect(self.load_data)
 
         # Progress bar
-        self.progress = QProgressBar()
+        self.progress = ModernProgressBar()
         self.progress.setVisible(False)
 
-        layout.addWidget(QLabel(f"<b>{self.title}</b>"))
-        layout.addWidget(QLabel("Source Type:"))
-        layout.addWidget(self.source_type)
         layout.addWidget(self.csv_group)
         layout.addWidget(self.sql_group)
         layout.addWidget(self.load_btn)
@@ -261,29 +439,52 @@ class ComparisonResultsWidget(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
         
         self.tabs = QTabWidget()
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #cccccc;
+                border-radius: 0px;
+                background-color: white;
+            }
+            QTabBar::tab {
+                background-color: #f0f0f0;
+                border: 1px solid #cccccc;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background-color: white;
+                border-bottom-color: white;
+            }
+            QTabBar::tab:hover {
+                background-color: #e0e0e0;
+            }
+        """)
         
         # Schema comparison tab
-        self.schema_widget = QTableWidget()
-        self.tabs.addTab(self.schema_widget, "Schema")
+        self.schema_widget = ModernTableWidget()
+        self.tabs.addTab(self.schema_widget, "📊 Schema")
         
         # Statistics tab
-        self.stats_widget = QTextEdit()
+        self.stats_widget = ModernTextEdit()
         self.stats_widget.setReadOnly(True)
-        self.tabs.addTab(self.stats_widget, "Statistics")
+        self.tabs.addTab(self.stats_widget, "📈 Statistics")
         
         # Differences tab
-        self.diff_widget = QTableWidget()
-        self.tabs.addTab(self.diff_widget, "Differences")
+        self.diff_widget = ModernTableWidget()
+        self.tabs.addTab(self.diff_widget, "🔍 Differences")
         
         # Visualization tab
         self.viz_widget = QWidget()
         viz_layout = QVBoxLayout()
-        self.figure_canvas = FigureCanvas(plt.Figure())
+        self.figure_canvas = FigureCanvas(plt.Figure(figsize=(10, 6)))
         viz_layout.addWidget(self.figure_canvas)
         self.viz_widget.setLayout(viz_layout)
-        self.tabs.addTab(self.viz_widget, "Visualization")
+        self.tabs.addTab(self.viz_widget, "📊 Visualization")
         
         layout.addWidget(self.tabs)
         self.setLayout(layout)
@@ -300,44 +501,55 @@ class ComparisonResultsWidget(QWidget):
 
     def display_schema(self, schema_data):
         self.schema_widget.setRowCount(3)
-        self.schema_widget.setColumnCount(1)
-        self.schema_widget.setHorizontalHeaderLabels(['Information'])
-        self.schema_widget.setVerticalHeaderLabels([
-            'Common Columns', 'Unique to Dataset 1', 'Unique to Dataset 2'
-        ])
+        self.schema_widget.setColumnCount(2)
+        self.schema_widget.setHorizontalHeaderLabels(['Category', 'Columns'])
+        self.schema_widget.setVerticalHeaderLabels([])
         
-        self.schema_widget.setItem(0, 0, QTableWidgetItem(', '.join(schema_data['common_columns'])))
-        self.schema_widget.setItem(1, 0, QTableWidgetItem(', '.join(schema_data['unique_to_df1'])))
-        self.schema_widget.setItem(2, 0, QTableWidgetItem(', '.join(schema_data['unique_to_df2'])))
+        categories = ['Common Columns', 'Unique to Dataset 1', 'Unique to Dataset 2']
+        data = [
+            ', '.join(schema_data['common_columns']),
+            ', '.join(schema_data['unique_to_df1']),
+            ', '.join(schema_data['unique_to_df2'])
+        ]
+        
+        for i, (category, columns) in enumerate(zip(categories, data)):
+            self.schema_widget.setItem(i, 0, QTableWidgetItem(category))
+            self.schema_widget.setItem(i, 1, QTableWidgetItem(columns))
         
         self.schema_widget.resizeColumnsToContents()
 
     def display_stats(self, results):
-        stats_text = "=== Row Count Comparison ===\n"
+        stats_text = "<h3>📊 Dataset Comparison Results</h3>"
+        
         if 'row_count' in results:
             rc = results['row_count']
-            stats_text += f"Dataset 1: {rc['df1_rows']} rows\n"
-            stats_text += f"Dataset 2: {rc['df2_rows']} rows\n"
-            stats_text += f"Difference: {rc['difference']} rows\n\n"
+            stats_text += f"<h4>📋 Row Count Comparison</h4>"
+            stats_text += f"<b>Dataset 1:</b> {rc['df1_rows']:,} rows<br>"
+            stats_text += f"<b>Dataset 2:</b> {rc['df2_rows']:,} rows<br>"
+            stats_text += f"<b>Difference:</b> {rc['difference']:,} rows<br><br>"
         
         if 'duplicates' in results:
             dup = results['duplicates']
-            stats_text += "=== Duplicates ===\n"
-            stats_text += f"Dataset 1 duplicates: {dup['df1_duplicates']}\n"
-            stats_text += f"Dataset 2 duplicates: {dup['df2_duplicates']}\n\n"
+            stats_text += f"<h4>🔍 Duplicates Analysis</h4>"
+            stats_text += f"<b>Dataset 1 duplicates:</b> {dup['df1_duplicates']:,}<br>"
+            stats_text += f"<b>Dataset 2 duplicates:</b> {dup['df2_duplicates']:,}<br><br>"
         
-        if 'column_stats' in results:
-            stats_text += "=== Column Statistics Differences ===\n"
+        if 'column_stats' in results and results['column_stats']:
+            stats_text += f"<h4>📈 Column Statistics Differences</h4>"
             for col, stats in results['column_stats'].items():
-                stats_text += f"{col}: Mean diff={stats['mean_diff']:.4f}, Std diff={stats['std_diff']:.4f}\n"
+                stats_text += f"<b>{col}:</b><br>"
+                stats_text += f"  • Mean difference: {stats['mean_diff']:.4f}<br>"
+                stats_text += f"  • Std deviation difference: {stats['std_diff']:.4f}<br>"
+                stats_text += f"  • Min difference: {stats.get('min_diff', 0):.4f}<br>"
+                stats_text += f"  • Max difference: {stats.get('max_diff', 0):.4f}<br><br>"
         
-        self.stats_widget.setText(stats_text)
+        self.stats_widget.setHtml(stats_text)
 
     def display_differences(self, differences):
         if not differences:
             self.diff_widget.setRowCount(1)
             self.diff_widget.setColumnCount(1)
-            self.diff_widget.setItem(0, 0, QTableWidgetItem("No differences found"))
+            self.diff_widget.setItem(0, 0, QTableWidgetItem("✅ No differences found"))
             return
         
         df = pd.DataFrame(differences)
@@ -347,7 +559,10 @@ class ComparisonResultsWidget(QWidget):
         
         for i, row in df.iterrows():
             for j, value in enumerate(row):
-                self.diff_widget.setItem(i, j, QTableWidgetItem(str(value)))
+                item = QTableWidgetItem(str(value))
+                if pd.isna(value):
+                    item.setBackground(QColor('#fff0f0'))
+                self.diff_widget.setItem(i, j, item)
         
         self.diff_widget.resizeColumnsToContents()
 
@@ -357,26 +572,35 @@ class ComparisonResultsWidget(QWidget):
         if not column_stats:
             ax = self.figure_canvas.figure.add_subplot(111)
             ax.text(0.5, 0.5, 'No numeric columns for visualization', 
-                   ha='center', va='center', transform=ax.transAxes)
+                   ha='center', va='center', transform=ax.transAxes,
+                   fontsize=12, color='gray')
+            ax.set_axis_off()
             self.figure_canvas.draw()
             return
         
-        # Create bar chart for mean differences
+        # Create subplots
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 10))
+        fig.suptitle('Statistical Comparison of Numeric Columns', fontsize=14, fontweight='bold')
+        
         columns = list(column_stats.keys())
-        mean_diffs = [stats['mean_diff'] for stats in column_stats.values()]
+        metrics = ['mean_diff', 'std_diff', 'min_diff', 'max_diff']
+        titles = ['Mean Differences', 'Std Deviation Differences', 'Min Differences', 'Max Differences']
+        axes = [ax1, ax2, ax3, ax4]
+        colors = ['#007acc', '#ff6b6b', '#34c759', '#ff9500']
         
-        ax = self.figure_canvas.figure.add_subplot(111)
-        bars = ax.bar(columns, mean_diffs)
-        ax.set_title('Mean Differences by Column')
-        ax.set_ylabel('Absolute Mean Difference')
-        ax.tick_params(axis='x', rotation=45)
+        for ax, metric, title, color in zip(axes, metrics, titles, colors):
+            values = [stats[metric] for stats in column_stats.values() if metric in stats]
+            if values:
+                bars = ax.bar(columns[:len(values)], values, color=color, alpha=0.7)
+                ax.set_title(title, fontweight='bold')
+                ax.tick_params(axis='x', rotation=45)
+                
+                # Add value labels
+                for bar, value in zip(bars, values):
+                    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
+                           f'{value:.4f}', ha='center', va='bottom', fontsize=8)
         
-        # Add value labels on bars
-        for bar, value in zip(bars, mean_diffs):
-            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
-                   f'{value:.4f}', ha='center', va='bottom')
-        
-        self.figure_canvas.figure.tight_layout()
+        plt.tight_layout()
         self.figure_canvas.draw()
 
 class MainWindow(QMainWindow):
@@ -385,13 +609,33 @@ class MainWindow(QMainWindow):
         self.df1 = None
         self.df2 = None
         self.init_ui()
+        self.apply_styles()
+
+    def apply_styles(self):
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f5f5f5;
+            }
+            QWidget {
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 11px;
+            }
+        """)
 
     def init_ui(self):
-        self.setWindowTitle("Dataset Comparison Tool")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setWindowTitle("🔍 Dataset Comparison Tool")
+        self.setGeometry(100, 100, 1400, 900)
 
         central_widget = QWidget()
         main_layout = QVBoxLayout()
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+
+        # Header
+        header = QLabel("<h1>🔍 Dataset Comparison Tool</h1>")
+        header.setStyleSheet("color: #007acc; margin: 10px;")
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(header)
 
         # Splitter for data sources and results
         splitter = QSplitter(Qt.Orientation.Vertical)
@@ -399,6 +643,8 @@ class MainWindow(QMainWindow):
         # Top section: Data sources
         sources_widget = QWidget()
         sources_layout = QHBoxLayout()
+        sources_layout.setSpacing(15)
+        sources_layout.setContentsMargins(0, 0, 0, 0)
         
         self.source1 = DataSourceWidget("Dataset 1")
         self.source2 = DataSourceWidget("Dataset 2")
@@ -413,8 +659,9 @@ class MainWindow(QMainWindow):
         sources_widget.setLayout(sources_layout)
 
         # Comparison options
-        options_group = QGroupBox("Comparison Options")
-        options_layout = QHBoxLayout()
+        options_group = ModernGroupBox("Comparison Options")
+        options_layout = QGridLayout()
+        options_layout.setSpacing(10)
         
         self.compare_schema = QCheckBox("Compare Schema")
         self.compare_schema.setChecked(True)
@@ -425,20 +672,20 @@ class MainWindow(QMainWindow):
         self.find_dups = QCheckBox("Find Duplicates")
         self.find_diffs = QCheckBox("Find Differences")
         
-        options_layout.addWidget(self.compare_schema)
-        options_layout.addWidget(self.compare_rows)
-        options_layout.addWidget(self.compare_stats)
-        options_layout.addWidget(self.find_dups)
-        options_layout.addWidget(self.find_diffs)
+        options_layout.addWidget(self.compare_schema, 0, 0)
+        options_layout.addWidget(self.compare_rows, 0, 1)
+        options_layout.addWidget(self.compare_stats, 0, 2)
+        options_layout.addWidget(self.find_dups, 1, 0)
+        options_layout.addWidget(self.find_diffs, 1, 1)
         options_group.setLayout(options_layout)
 
         # Compare button
-        self.compare_btn = QPushButton("Compare Datasets")
+        self.compare_btn = StyledButton("🚀 Compare Datasets", primary=True)
         self.compare_btn.clicked.connect(self.compare_datasets)
         self.compare_btn.setEnabled(False)
 
         # Progress bar for comparison
-        self.compare_progress = QProgressBar()
+        self.compare_progress = ModernProgressBar()
         self.compare_progress.setVisible(False)
 
         # Results section
@@ -447,6 +694,7 @@ class MainWindow(QMainWindow):
         # Add widgets to splitter
         top_widget = QWidget()
         top_layout = QVBoxLayout()
+        top_layout.setSpacing(10)
         top_layout.addWidget(sources_widget)
         top_layout.addWidget(options_group)
         top_layout.addWidget(self.compare_btn)
@@ -455,7 +703,7 @@ class MainWindow(QMainWindow):
 
         splitter.addWidget(top_widget)
         splitter.addWidget(self.results_widget)
-        splitter.setSizes([300, 500])
+        splitter.setSizes([400, 500])
 
         main_layout.addWidget(splitter)
         central_widget.setLayout(main_layout)
@@ -474,6 +722,7 @@ class MainWindow(QMainWindow):
         
         if self.df1 is not None and self.df2 is not None:
             self.compare_btn.setEnabled(True)
+            self.compare_btn.setText("🚀 Compare Datasets (Ready)")
 
     def compare_datasets(self):
         if self.df1 is None or self.df2 is None:
@@ -498,6 +747,7 @@ class MainWindow(QMainWindow):
             return
 
         self.compare_btn.setEnabled(False)
+        self.compare_btn.setText("⏳ Comparing...")
         self.compare_progress.setVisible(True)
 
         self.worker = ComparisonWorker(self.df1, self.df2, methods)
@@ -508,16 +758,22 @@ class MainWindow(QMainWindow):
 
     def on_comparison_finished(self, results):
         self.compare_btn.setEnabled(True)
+        self.compare_btn.setText("🚀 Compare Datasets")
         self.compare_progress.setVisible(False)
         self.results_widget.display_results(results)
 
     def on_comparison_error(self, error_msg):
         self.compare_btn.setEnabled(True)
+        self.compare_btn.setText("🚀 Compare Datasets")
         self.compare_progress.setVisible(False)
         QMessageBox.critical(self, "Comparison Error", f"Error during comparison:\n{error_msg}")
 
 def main():
     app = QApplication(sys.argv)
+    
+    # Set application style
+    app.setStyle('Fusion')
+    
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
