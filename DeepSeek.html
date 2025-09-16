@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataCompy Comparison Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4e73df;
+            --success: #1cc88a;
+            --danger: #e74a3b;
+            --warning: #f6c23e;
+            --info: #36b9cc;
+            --secondary: #858796;
+            --light: #f8f9fc;
+            --dark: #5a5c69;
+        }
+        
+        body {
+            background-color: #f8f9fc;
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+            margin-bottom: 1.5rem;
+        }
+        
+        .card-header {
+            background-color: #f8f9fc;
+            border-bottom: 1px solid #e3e6f0;
+            padding: 0.75rem 1.25rem;
+            font-weight: 700;
+        }
+        
+        .stat-card {
+            border-left: 4px solid;
+        }
+        
+        .stat-card.total { border-left-color: var(--primary); }
+        .stat-card.match { border-left-color: var(--success); }
+        .stat-card.mismatch { border-left-color: var(--danger); }
+        .stat-card.only-base { border-left-color: var(--warning); }
+        .stat-card.only-compare { border-left-color: var(--info); }
+        
+        .stat-card .card-body { padding: 1.25rem; }
+        
+        .stat-card .text-xs {
+            font-size: 0.8rem;
+        }
+        
+        .stat-card .h5 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0;
+        }
+        
+        .percentage {
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+        
+        .nav-tabs .nav-link {
+            color: var(--dark);
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--primary);
+            border-bottom: 3px solid var(--primary);
+        }
+        
+        .table th {
+            font-weight: 700;
+            color: var(--dark);
+        }
+        
+        .match-row { background-color: rgba(28, 200, 138, 0.1); }
+        .mismatch-row { background-color: rgba(231, 74, 59, 0.1); }
+        
+        .badge-match { background-color: var(--success); }
+        .badge-mismatch { background-color: var(--danger); }
+        .badge-only-base { background-color: var(--warning); }
+        .badge-only-compare { background-color: var(--info); }
+        
+        .summary-icon {
+            font-size: 2rem;
+            opacity: 0.3;
+        }
+        
+        .progress {
+            height: 10px;
+            margin-top: 5px;
+        }
+        
+        .progress-bar-match { background-color: var(--success); }
+        .progress-bar-mismatch { background-color: var(--danger); }
+        .progress-bar-only-base { background-color: var(--warning); }
+        .progress-bar-only-compare { background-color: var(--info); }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="d-sm-flex align-items-center justify-content-between mb-4">
+            <h1 class="h3 mb-0 text-gray-800">DataCompy Comparison Results</h1>
+            <div class="d-none d-sm-inline-block">
+                <span class="badge bg-secondary me-2">Base: Sales Data Q1</span>
+                <span class="badge bg-secondary">Compare: Sales Data Q2</span>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="row">
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card total h-100">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Rows</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">12,584</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-database summary-icon text-primary"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card match h-100">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Matching Rows</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">9,872</div>
+                                <div class="mt-2 mb-0">
+                                    <span class="percentage text-success">78.4%</span>
+                                    <div class="progress">
+                                        <div class="progress-bar progress-bar-match" role="progressbar" style="width: 78.4%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-check-circle summary-icon text-success"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card mismatch h-100">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Mismatched Rows</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">1,245</div>
+                                <div class="mt-2 mb-0">
+                                    <span class="percentage text-danger">9.9%</span>
+                                    <div class="progress">
+                                        <div class="progress-bar progress-bar-mismatch" role="progressbar" style="width: 9.9%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-times-circle summary-icon text-danger"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card only-base h-100">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Only in Base</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">987</div>
+                                <div class="mt-2 mb-0">
+                                    <span class="percentage text-warning">7.8%</span>
+                                    <div class="progress">
+                                        <div class="progress-bar progress-bar-only-base" role="progressbar" style="width: 7.8%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-exclamation-circle summary-icon text-warning"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Section -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <ul class="nav nav-tabs card-header-tabs" id="myTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab">Comparison Details</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="mismatches-tab" data-bs-toggle="tab" data-bs-target="#mismatches" type="button" role="tab">Mismatches</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="only-base-tab" data-bs-toggle="tab" data-bs-target="#only-base" type="button" role="tab">Only in Base</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="only-compare-tab" data-bs-toggle="tab" data-bs-target="#only-compare" type="button" role="tab">Only in Compare</button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content" id="myTabContent">
+                    <!-- Details Tab -->
+                    <div class="tab-pane fade show active" id="details" role="tabpanel">
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-header">
+                                        <h6 class="m-0 font-weight-bold">Comparison Summary</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <table class="table table-sm">
+                                            <tr>
+                                                <th>Base Rows</th>
+                                                <td>11,117</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Compare Rows</th>
+                                                <td>11,861</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Intersect Rows</th>
+                                                <td>10,130</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Matching Columns</th>
+                                                <td>7/10</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Join Columns</th>
+                                                <td>order_id, customer_id</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-header">
+                                        <h6 class="m-0 font-weight-bold">Column Matching Summary</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Column</th>
+                                                    <th>Match %</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td>order_id</td>
+                                                    <td>100%</td>
+                                                    <td><span class="badge badge-match">Match</span></td>
+                                                </tr>
+                                                <tr>
+                                                    <td>customer_id</td>
+                                                    <td>100%</td>
+                                                    <td><span class="badge badge-match">Match</span></td>
+                                                </tr>
+                                                <tr>
+                                                    <td>product_id</td>
+                                                    <td>97.3%</td>
+                                                    <td><span class="badge badge-match">Match</span></td>
+                                                </tr>
+                                                <tr>
+                                                    <td>quantity</td>
+                                                    <td>89.2%</td>
+                                                    <td><span class="badge badge-mismatch">Mismatch</span></td>
+                                                </tr>
+                                                <tr>
+                                                    <td>unit_price</td>
+                                                    <td>92.1%</td>
+                                                    <td><span class="badge badge-mismatch">Mismatch</span></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mismatches Tab -->
+                    <div class="tab-pane fade" id="mismatches" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>Row ID</th>
+                                        <th>Column</th>
+                                        <th>Base Value</th>
+                                        <th>Compare Value</th>
+                                        <th>Difference</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="mismatch-row">
+                                        <td>10427</td>
+                                        <td>quantity</td>
+                                        <td>15</td>
+                                        <td>12</td>
+                                        <td>3</td>
+                                    </tr>
+                                    <tr class="mismatch-row">
+                                        <td>10427</td>
+                                        <td>total_price</td>
+                                        <td>187.50</td>
+                                        <td>150.00</td>
+                                        <td>37.50</td>
+                                    </tr>
+                                    <tr class="mismatch-row">
+                                        <td>11589</td>
+                                        <td>unit_price</td>
+                                        <td>24.99</td>
+                                        <td>29.99</td>
+                                        <td>5.00</td>
+                                    </tr>
+                                    <tr class="mismatch-row">
+                                        <td>11589</td>
+                                        <td>total_price</td>
+                                        <td>249.90</td>
+                                        <td>299.90</td>
+                                        <td>50.00</td>
+                                    </tr>
+                                    <tr class="mismatch-row">
+                                        <td>12245</td>
+                                        <td>discount</td>
+                                        <td>0.10</td>
+                                        <td>0.15</td>
+                                        <td>0.05</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                                <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                                <li class="page-item"><a class="page-link" href="#">2</a></li>
+                                <li class="page-item"><a class="page-link" href="#">3</a></li>
+                                <li class="page-item"><a class="page-link" href="#">Next</a></li>
+                            </ul>
+                        </nav>
+                    </div>
+                    
+                    <!-- Only in Base Tab -->
+                    <div class="tab-pane fade" id="only-base" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>Row ID</th>
+                                        <th>order_id</th>
+                                        <th>customer_id</th>
+                                        <th>product_id</th>
+                                        <th>quantity</th>
+                                        <th>unit_price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>B-001</td>
+                                        <td>ORD-7821</td>
+                                        <td>CUST-00982</td>
+                                        <td>PROD-782</td>
+                                        <td>5</td>
+                                        <td>19.99</td>
+                                    </tr>
+                                    <tr>
+                                        <td>B-002</td>
+                                        <td>ORD-7825</td>
+                                        <td>CUST-01045</td>
+                                        <td>PROD-156</td>
+                                        <td>2</td>
+                                        <td>49.99</td>
+                                    </tr>
+                                    <tr>
+                                        <td>B-003</td>
+                                        <td>ORD-7830</td>
+                                        <td>CUST-00762</td>
+                                        <td>PROD-521</td>
+                                        <td>10</td>
+                                        <td>7.99</td>
+                                    </tr>
+                                    <tr>
+                                        <td>B-004</td>
+                                        <td>ORD-7842</td>
+                                        <td>CUST-01234</td>
+                                        <td>PROD-943</td>
+                                        <td>1</td>
+                                        <td>99.99</td>
+                                    </tr>
+                                    <tr>
+                                        <td>B-005</td>
+                                        <td>ORD-7851</td>
+                                        <td>CUST-00891</td>
+                                        <td>PROD-274</td>
+                                        <td>3</td>
+                                        <td>24.99</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                                <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                                <li class="page-item"><a class="page-link" href="#">2</a></li>
+                                <li class="page-item"><a class="page-link" href="#">3</a></li>
+                                <li class="page-item"><a class="page-link" href="#">Next</a></li>
+                            </ul>
+                        </nav>
+                    </div>
+                    
+                    <!-- Only in Compare Tab -->
+                    <div class="tab-pane fade" id="only-compare" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>Row ID</th>
+                                        <th>order_id</th>
+                                        <th>customer_id</th>
+                                        <th>product_id</th>
+                                        <th>quantity</th>
+                                        <th>unit_price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>C-001</td>
+                                        <td>ORD-7921</td>
+                                        <td>CUST-01345</td>
+                                        <td>PROD-865</td>
+                                        <td>7</td>
+                                        <td>14.99</td>
+                                    </tr>
+                                    <tr>
+                                        <td>C-002</td>
+                                        <td>ORD-7934</td>
+                                        <td>CUST-01123</td>
+                                        <td>PROD-327</td>
+                                        <td>2</td>
+                                        <td>39.99</td>
+                                    </tr>
+                                    <tr>
+                                        <td>C-003</td>
+                                        <td>ORD-7942</td>
+                                        <td>CUST-00917</td>
+                                        <td>PROD-652</td>
+                                        <td>15</td>
+                                        <td>5.99</td>
+                                    </tr>
+                                    <tr>
+                                        <td>C-004</td>
+                                        <td>ORD-7955</td>
+                                        <td>CUST-01456</td>
+                                        <td>PROD-178</td>
+                                        <td>1</td>
+                                        <td>199.99</td>
+                                    </tr>
+                                    <tr>
+                                        <td>C-005</td>
+                                        <td>ORD-7961</td>
+                                        <td>CUST-01278</td>
+                                        <td>PROD-489</td>
+                                        <td>4</td>
+                                        <td>29.99</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+                                <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                                <li class="page-item"><a class="page-link" href="#">2</a></li>
+                                <li class="page-item"><a class="page-link" href="#">3</a></li>
+                                <li class="page-item"><a class="page-link" href="#">Next</a></li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Simple script to handle tab interactions if needed
+        document.addEventListener('DOMContentLoaded', function() {
+            const triggerTabList = document.querySelectorAll('#myTab button')
+            triggerTabList.forEach(triggerEl => {
+                new bootstrap.Tab(triggerEl)
+            })
+        });
+    </script>
+</body>
+</html>
